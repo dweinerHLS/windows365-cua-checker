@@ -809,8 +809,9 @@ async function signIn() {
     });
     showError(''); // clear any previous error
     // Use redirect — no popup to block. Microsoft login page opens in the same tab.
+    // Request both Graph and Power Platform scopes up front so user consents to everything at once
     await msalInstance.loginRedirect({
-      scopes: SCOPES,
+      scopes: [...SCOPES, 'https://api.powerplatform.com/.default'],
       prompt: 'select_account'
     });
     // page navigates away after this; resumes in init() on return
@@ -898,17 +899,29 @@ async function getBapToken() {
   try {
     const resp = await msalInstance.acquireTokenSilent({ scopes: BAP_SCOPES, account: accounts[0] });
     return resp.accessToken;
-  } catch {
-    await msalInstance.acquireTokenRedirect({ scopes: BAP_SCOPES, account: accounts[0] });
-    return null;
+  } catch (e) {
+    // Don't redirect during check run — just report the error
+    throw new Error('Power Platform token not available. You may need to consent to Power Platform permissions. Sign out and sign back in to trigger consent.');
   }
+}
+
+function fetchWithTimeout(url, options, timeoutMs = 10000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
 }
 
 async function bapGet(url) {
   if (!bapToken) bapToken = await getBapToken();
-  const resp = await fetch(url, {
-    headers: { Authorization: 'Bearer ' + bapToken }
-  });
+  let resp;
+  try {
+    resp = await fetchWithTimeout(url, {
+      headers: { Authorization: 'Bearer ' + bapToken }
+    }, 12000);
+  } catch (e) {
+    if (e.name === 'AbortError') throw new Error('Request timed out — Power Platform API may not be reachable from the browser (CORS).');
+    throw new Error('Network error calling Power Platform API: ' + e.message + '. The API may not support browser (CORS) requests.');
+  }
   if (resp.status === 401) { bapToken = null; bapToken = await getBapToken(); return bapGet(url); }
   if (!resp.ok) {
     const err = await resp.json().catch(() => ({ error: { message: resp.statusText } }));
