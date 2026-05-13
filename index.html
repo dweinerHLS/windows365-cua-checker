@@ -809,9 +809,8 @@ async function signIn() {
     });
     showError(''); // clear any previous error
     // Use redirect — no popup to block. Microsoft login page opens in the same tab.
-    // Request both Graph and Power Platform scopes up front so user consents to everything at once
     await msalInstance.loginRedirect({
-      scopes: [...SCOPES, 'https://api.powerplatform.com/.default'],
+      scopes: SCOPES,
       prompt: 'select_account'
     });
     // page navigates away after this; resumes in init() on return
