@@ -1176,6 +1176,39 @@ const PP_CHECKS = [
         return { status: 'warn', msg: `Could not check billing: ${e.message}. Verify manually in PPAC → Billing → Billing policies.` };
       }
     }
+  },
+  {
+    id: 'pp-copilot-authors-group',
+    name: 'Security Group Assigned to Copilot Studio Authors',
+    scope: 'servicePrincipals/appRoleAssignedTo',
+    docUrl: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-licensing-subscriptions',
+    run: async () => {
+      try {
+        // Look for the Copilot Studio / Power Virtual Agents service principal
+        const spResp = await graphGet("/servicePrincipals?$filter=startswith(displayName,'Copilot Studio') or startswith(displayName,'Power Virtual Agents')&$select=id,displayName,appId&$top=5");
+        let sp = spResp.value?.find(s => s.displayName?.includes('Copilot Studio')) || spResp.value?.[0];
+        // Fallback: try known Copilot Studio app IDs
+        if (!sp) {
+          const knownIds = ['96ff4394-9197-43aa-b393-6a41652b21a8', '27a9b44c-7067-4b5e-960e-6100683e48f7'];
+          for (const appId of knownIds) {
+            const r = await graphGet(`/servicePrincipals?$filter=appId eq '${appId}'&$select=id,displayName`);
+            if (r.value?.length) { sp = r.value[0]; break; }
+          }
+        }
+        if (!sp) return { status: 'warn', msg: 'Copilot Studio service principal not found in this tenant. Ensure Copilot Studio is provisioned.' };
+        // Check for appRoleAssignments (security groups / users assigned)
+        const assignments = await graphGet(`/servicePrincipals/${sp.id}/appRoleAssignedTo?$select=principalId,principalDisplayName,principalType&$top=50`);
+        const groups = (assignments.value || []).filter(a => a.principalType === 'Group');
+        if (groups.length > 0)
+          return { status: 'pass', msg: `Security group(s) assigned: ${groups.map(g => g.principalDisplayName).join(', ')}` };
+        const users = (assignments.value || []).filter(a => a.principalType === 'User');
+        if (users.length > 0)
+          return { status: 'warn', msg: `${users.length} user(s) assigned directly but no security group found. Best practice is to assign a security group.` };
+        return { status: 'warn', msg: `No security group assigned to "${sp.displayName}". Assign a security group in Entra ID → Enterprise Apps → ${sp.displayName} → Users and groups.` };
+      } catch (e) {
+        return { status: 'warn', msg: `Could not check Copilot Studio author assignments: ${e.message}` };
+      }
+    }
   }
 ];
 
