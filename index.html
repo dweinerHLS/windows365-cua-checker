@@ -734,7 +734,7 @@
    CONFIG  — multi-tenant app, no user setup needed
 ───────────────────────────────────────────── */
 const CLIENT_ID   = 'c0259337-f92a-49bd-8034-d4912ed1b26c';
-const REDIRECT_URI = window.location.href.split('?')[0].split('#')[0];
+const REDIRECT_URI = window.location.origin + window.location.pathname;
 
 let msalInstance = null;
 let graphToken   = null;
@@ -746,7 +746,7 @@ function buildMsal() {
       authority:   'https://login.microsoftonline.com/organizations',
       redirectUri: REDIRECT_URI
     },
-    cache: { cacheLocation: 'sessionStorage' }
+    cache: { cacheLocation: 'localStorage', storeAuthStateInCookie: true }
   });
 }
 
@@ -765,29 +765,16 @@ const SCOPES = [
 
 async function signIn() {
   if (!msalInstance) msalInstance = buildMsal();
-  if (CLIENT_ID === 'YOUR_CLIENT_ID_HERE') {
-    alert('⚠️ This tool has not been configured yet.\n\nThe site owner needs to register an Azure AD app and update the Client ID in index.html.');
-    return;
-  }
-  try {
-    const resp = await msalInstance.loginPopup({
-      scopes: SCOPES,
-      prompt: 'consent',            // triggers admin consent on first use per tenant
-      extraQueryParameters: { admin_consent: 'true' }
-    });
-    onSignedIn(resp.account);
-  } catch (e) {
-    // if user cancels consent, fall back to silent login if already consented
-    if (e.errorCode === 'user_cancelled' || e.errorCode === 'access_denied') {
-      try {
-        const resp2 = await msalInstance.loginPopup({ scopes: SCOPES });
-        onSignedIn(resp2.account);
-        return;
-      } catch {}
-    }
-    console.error('Sign-in error:', e);
-    alert('Sign-in failed: ' + (e.message || e));
-  }
+  // Show loading state on all sign-in buttons before redirect
+  document.querySelectorAll('#btn-signin, #signin-panel .btn-primary').forEach(b => {
+    b.disabled = true; b.textContent = '⏳ Redirecting to Microsoft login…';
+  });
+  // Use redirect — no popup to block. Microsoft login page opens in the same tab.
+  await msalInstance.loginRedirect({
+    scopes: SCOPES,
+    prompt: 'select_account'
+  });
+  // execution resumes after redirect back — handled in init()
 }
 
 async function getToken() {
@@ -797,14 +784,14 @@ async function getToken() {
     const resp = await msalInstance.acquireTokenSilent({ scopes: SCOPES, account: accounts[0] });
     return resp.accessToken;
   } catch {
-    const resp = await msalInstance.acquireTokenPopup({ scopes: SCOPES, account: accounts[0] });
-    return resp.accessToken;
+    // silent failed — redirect to get a fresh token
+    await msalInstance.acquireTokenRedirect({ scopes: SCOPES, account: accounts[0] });
+    return null; // will redirect
   }
 }
 
 function signOut() {
-  msalInstance?.logoutPopup().catch(() => {});
-  location.reload();
+  msalInstance?.logoutRedirect({ postLogoutRedirectUri: REDIRECT_URI }).catch(() => location.reload());
 }
 
 
@@ -1316,9 +1303,17 @@ function exportResults() {
   msalInstance = buildMsal();
 
   try {
-    await msalInstance.handleRedirectPromise();
-  } catch (e) { console.warn('handleRedirectPromise:', e); }
+    // handleRedirectPromise captures the auth response after Microsoft redirects back
+    const redirectResult = await msalInstance.handleRedirectPromise();
+    if (redirectResult?.account) {
+      onSignedIn(redirectResult.account);
+      return;
+    }
+  } catch (e) {
+    console.warn('Redirect error:', e);
+  }
 
+  // Already signed in from a previous session (token in localStorage)
   const accounts = msalInstance.getAllAccounts();
   if (accounts.length > 0) {
     onSignedIn(accounts[0]);
