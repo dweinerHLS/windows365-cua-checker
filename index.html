@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Windows 365 for Agents – CUA Prerequisite Checker</title>
 
-  <!-- MSAL Browser (OAuth 2.0 PKCE for Microsoft Graph) -->
-  <script src="https://alcdn.msauth.net/browser/2.39.0/js/msal-browser.min.js"></script>
+  <!-- MSAL Browser 2.38.3 (stable, well-tested) -->
+  <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
 
   <style>
     :root {
@@ -739,15 +739,28 @@ const REDIRECT_URI = window.location.origin + window.location.pathname;
 let msalInstance = null;
 let graphToken   = null;
 
-function buildMsal() {
-  return new msal.PublicClientApplication({
+async function buildMsal() {
+  const config = {
     auth: {
       clientId:    CLIENT_ID,
       authority:   'https://login.microsoftonline.com/organizations',
-      redirectUri: REDIRECT_URI
+      redirectUri: REDIRECT_URI,
+      navigateToLoginRequestUrl: true
     },
-    cache: { cacheLocation: 'localStorage', storeAuthStateInCookie: true }
-  });
+    cache: { cacheLocation: 'localStorage', storeAuthStateInCookie: true },
+    system: {
+      loggerOptions: {
+        logLevel: msal.LogLevel.Warning,
+        loggerCallback: (level, message) => console.log('[MSAL]', message)
+      }
+    }
+  };
+  const instance = new msal.PublicClientApplication(config);
+  // MSAL 2.x requires initialize() before any API calls
+  if (typeof instance.initialize === 'function') {
+    await instance.initialize();
+  }
+  return instance;
 }
 
 
@@ -764,20 +777,43 @@ const SCOPES = [
 ];
 
 async function signIn() {
-  if (!msalInstance) msalInstance = buildMsal();
-  // Show loading state on all sign-in buttons before redirect
-  document.querySelectorAll('#btn-signin, #signin-panel .btn-primary').forEach(b => {
-    b.disabled = true; b.textContent = '⏳ Redirecting to Microsoft login…';
-  });
-  // Use redirect — no popup to block. Microsoft login page opens in the same tab.
-  await msalInstance.loginRedirect({
-    scopes: SCOPES,
-    prompt: 'select_account'
-  });
-  // execution resumes after redirect back — handled in init()
+  try {
+    if (!msalInstance) msalInstance = await buildMsal();
+    // Show loading state on all sign-in buttons before redirect
+    document.querySelectorAll('#btn-signin, #signin-panel .btn-primary').forEach(b => {
+      b.disabled = true; b.textContent = '⏳ Redirecting to Microsoft login…';
+    });
+    showError(''); // clear any previous error
+    // Use redirect — no popup to block. Microsoft login page opens in the same tab.
+    await msalInstance.loginRedirect({
+      scopes: SCOPES,
+      prompt: 'select_account'
+    });
+    // page navigates away after this; resumes in init() on return
+  } catch (e) {
+    console.error('signIn error:', e);
+    showError('Sign-in error: ' + (e.message || e) + '\n\nCheck browser console (F12) for details.');
+    // Reset buttons
+    document.querySelectorAll('#btn-signin, #signin-panel .btn-primary').forEach(b => {
+      b.disabled = false; b.textContent = '🔐 Sign in with Microsoft';
+    });
+  }
+}
+
+function showError(msg) {
+  let el = document.getElementById('error-banner');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'error-banner';
+    el.style.cssText = 'background:rgba(242,90,90,0.15);border:1px solid rgba(242,90,90,0.4);color:#f28080;border-radius:10px;padding:14px 18px;margin:16px auto;max-width:700px;font-size:0.85rem;white-space:pre-wrap;display:none;';
+    document.querySelector('main').prepend(el);
+  }
+  if (msg) { el.textContent = msg; el.style.display = 'block'; }
+  else { el.style.display = 'none'; }
 }
 
 async function getToken() {
+  if (!msalInstance) msalInstance = await buildMsal();
   const accounts = msalInstance.getAllAccounts();
   if (!accounts.length) throw new Error('Not signed in');
   try {
@@ -791,7 +827,13 @@ async function getToken() {
 }
 
 function signOut() {
-  msalInstance?.logoutRedirect({ postLogoutRedirectUri: REDIRECT_URI }).catch(() => location.reload());
+  if (msalInstance) {
+    msalInstance.logoutRedirect({ postLogoutRedirectUri: REDIRECT_URI }).catch(() => location.reload());
+  } else {
+    localStorage.clear();
+    sessionStorage.clear();
+    location.reload();
+  }
 }
 
 
@@ -1300,23 +1342,40 @@ function exportResults() {
    INIT (handle redirect)
 ───────────────────────────────────────────── */
 (async function init() {
-  msalInstance = buildMsal();
-
   try {
+    console.log('[CUA] Initializing MSAL...');
+    console.log('[CUA] Redirect URI:', REDIRECT_URI);
+    msalInstance = await buildMsal();
+    console.log('[CUA] MSAL initialized, handling redirect...');
+
     // handleRedirectPromise captures the auth response after Microsoft redirects back
     const redirectResult = await msalInstance.handleRedirectPromise();
     if (redirectResult?.account) {
+      console.log('[CUA] Signed in via redirect:', redirectResult.account.username);
       onSignedIn(redirectResult.account);
       return;
     }
-  } catch (e) {
-    console.warn('Redirect error:', e);
-  }
 
-  // Already signed in from a previous session (token in localStorage)
-  const accounts = msalInstance.getAllAccounts();
-  if (accounts.length > 0) {
-    onSignedIn(accounts[0]);
+    // Already signed in from a previous session (token in localStorage)
+    const accounts = msalInstance.getAllAccounts();
+    console.log('[CUA] Existing accounts:', accounts.length);
+    if (accounts.length > 0) {
+      onSignedIn(accounts[0]);
+    }
+  } catch (e) {
+    console.error('[CUA] Init error:', e);
+    // Show the error visually after a moment so the DOM is ready
+    setTimeout(() => {
+      let el = document.getElementById('error-banner');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'error-banner';
+        el.style.cssText = 'background:rgba(242,90,90,0.15);border:1px solid rgba(242,90,90,0.4);color:#f28080;border-radius:10px;padding:14px 18px;margin:16px auto;max-width:700px;font-size:0.85rem;white-space:pre-wrap;';
+        document.querySelector('main')?.prepend(el);
+      }
+      el.textContent = 'Initialization error: ' + (e.message || e) + '\n\nPress F12 to open browser console for details.';
+      el.style.display = 'block';
+    }, 100);
   }
 })();
 </script>
