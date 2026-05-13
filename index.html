@@ -1113,39 +1113,27 @@ const INTUNE_CHECKS = [
 ───────────────────────────────────────────── */
 const PP_CHECKS = [
   {
-    id: 'pp-copilot-authors-group',
-    name: 'Security Group Assigned to Copilot Studio Authors',
-    scope: 'servicePrincipals · appRoleAssignedTo',
-    docUrl: 'https://learn.microsoft.com/en-us/power-platform/admin/managed-environment-enable#configure-copilot-studio-components',
+    id: 'pp-billing',
+    name: 'Pay-As-You-Go or Copilot Studio License',
+    scope: 'organization/subscribedSKUs',
+    docUrl: 'https://learn.microsoft.com/en-us/power-platform/admin/pay-as-you-go-set-up?tabs=new',
     run: async () => {
       try {
-        // Find the Power Virtual Agents / Copilot Studio service principal
-        const knownIds = ['96ff4394-9197-43aa-b393-6a41652b21a8', '27a9b44c-7067-4b5e-960e-6100683e48f7'];
-        let sp = null;
-        for (const appId of knownIds) {
-          const r = await graphGet(`/servicePrincipals?$filter=appId eq '${appId}'&$select=id,displayName,appRoleAssignmentRequired`);
-          if (r.value?.length) { sp = r.value[0]; break; }
-        }
-        // Also try searching by name
-        if (!sp) {
-          const nameSearch = await graphGet("/servicePrincipals?$filter=startswith(displayName,'Power Virtual Agents') or startswith(displayName,'Copilot Studio')&$select=id,displayName,appRoleAssignmentRequired&$top=5");
-          sp = nameSearch.value?.find(s => s.displayName?.includes('Copilot Studio') || s.displayName?.includes('Power Virtual Agents'));
-        }
-        if (!sp) return { status: 'warn', msg: 'Copilot Studio / Power Virtual Agents service principal not found in tenant. Ensure Copilot Studio is provisioned.' };
-        // Check if assignment is required (i.e. restricted to assigned users/groups)
-        if (!sp.appRoleAssignmentRequired)
-          return { status: 'warn', msg: `"${sp.displayName}" found but assignment is not required — all users can access. To restrict, enable "Assignment required" and assign a security group in Entra ID → Enterprise Apps → ${sp.displayName} → Properties & Users and groups.` };
-        // Get assigned groups
-        const assignments = await graphGet(`/servicePrincipals/${sp.id}/appRoleAssignedTo?$select=principalId,principalDisplayName,principalType&$top=50`);
-        const groups = (assignments.value || []).filter(a => a.principalType === 'Group');
-        if (groups.length > 0)
-          return { status: 'pass', msg: `Security group(s) assigned: ${groups.map(g => g.principalDisplayName).join(', ')}` };
-        const users = (assignments.value || []).filter(a => a.principalType === 'User');
-        if (users.length > 0)
-          return { status: 'warn', msg: `${users.length} user(s) assigned directly but no security group found. Best practice is to assign a security group.` };
-        return { status: 'fail', msg: `"${sp.displayName}" has assignment required but no users or groups assigned. Assign a security group in Entra ID → Enterprise Apps → ${sp.displayName} → Users and groups.` };
+        const resp = await graphGet('/subscribedSkus?$select=skuPartNumber,skuId,capabilityStatus,consumedUnits,prepaidUnits');
+        const skus = resp.value || [];
+        // Look for Copilot Studio, Power Virtual Agents, or Power Platform related SKUs
+        const ppPatterns = ['POWER_VIRTUAL_AGENTS','PVA','COPILOT_STUDIO','CCOF','VIRTUAL_AGENT','POWERAPPS','FLOW_PER_USER','POWERAUTOMATE','POWER_APPS'];
+        const found = skus.filter(s => ppPatterns.some(p => s.skuPartNumber?.toUpperCase().includes(p)) && s.capabilityStatus === 'Enabled');
+        if (found.length > 0)
+          return { status: 'pass', msg: `Copilot Studio / Power Platform license found: ${found.map(s => s.skuPartNumber).join(', ')}` };
+        // Check for M365 E3/E5 which may include Power Platform
+        const m365Patterns = ['SPE_E3','SPE_E5','M365_E3','M365_E5','ENTERPRISEPREMIUM','DEVELOPERPACK'];
+        const m365 = skus.filter(s => m365Patterns.some(p => s.skuPartNumber?.toUpperCase().includes(p)) && s.capabilityStatus === 'Enabled');
+        if (m365.length > 0)
+          return { status: 'warn', msg: `No dedicated Copilot Studio license found, but M365 license detected (${m365.map(s => s.skuPartNumber).join(', ')}). Verify a pay-as-you-go billing plan is linked in PPAC → Billing → Billing policies for CUA usage.` };
+        return { status: 'fail', msg: 'No Copilot Studio or Power Platform license found. Link an Azure subscription via pay-as-you-go in Power Platform admin center or assign a Copilot Studio license.' };
       } catch (e) {
-        return { status: 'warn', msg: `Could not check Copilot Studio author assignments: ${e.message}` };
+        return { status: 'warn', msg: `Could not check licenses: ${e.message}. Verify billing in PPAC → Billing → Billing policies.` };
       }
     }
   }
@@ -1155,13 +1143,6 @@ const PP_CHECKS = [
    MANUAL CHECKLIST ITEMS
 ───────────────────────────────────────────── */
 const MANUAL_ITEMS = [
-  {
-    id: 'manual-azure-sub',
-    title: 'Azure Subscription linked to Power Platform (Pay-As-You-Go)',
-    desc: 'A valid Azure subscription must be linked to your Power Platform environment via a pay-as-you-go billing plan. Verify in PPAC → Billing → Billing policies.',
-    link: 'https://learn.microsoft.com/en-us/power-platform/admin/pay-as-you-go-set-up?tabs=new',
-    linkText: 'Set up Pay-As-You-Go →'
-  },
   {
     id: 'manual-cross-geo',
     title: 'Cross-geo support enabled (if environment is outside tenant region)',
