@@ -11,6 +11,7 @@
   <style>
     :root {
       --bg:        #0f0f1a;
+
       --surface:   #1a1a2e;
       --card:      #16213e;
       --border:    #0f3460;
@@ -597,42 +598,13 @@
     <span class="preview-badge">PREVIEW</span>
   </div>
   <div class="header-right" id="header-actions">
-    <button class="btn btn-ghost" id="btn-config" onclick="openConfig()">⚙️ Configure App</button>
     <button class="btn btn-primary" id="btn-signin" onclick="signIn()">🔐 Sign in with Microsoft</button>
     <button class="btn btn-ghost" id="btn-signout" style="display:none" onclick="signOut()">Sign out</button>
     <button class="btn btn-success" id="btn-run" style="display:none" onclick="runAllChecks()">▶ Run All Checks</button>
   </div>
 </header>
 
-<!-- ══════════════════════ CONFIG MODAL ══════════════════════ -->
-<div id="config-modal">
-  <div class="modal-box">
-    <h3>🔧 App Registration Configuration</h3>
-    <p>
-      To sign in and query your tenant, this tool needs an Azure AD app registration with delegated permissions.
-      Register an app in <a href="https://entra.microsoft.com/#view/Microsoft_AAD_RegisteredApps/CreateApplicationBlade" target="_blank" style="color:var(--accent2)">Microsoft Entra</a>
-      with <strong>Single-page application (SPA)</strong> redirect URI pointing to this page's URL,
-      then paste the Client ID below.
-      <br><br>
-      <strong>Required API permissions (delegated):</strong><br>
-      <code style="font-size:0.78rem">Application.Read.All · DeviceManagementConfiguration.Read.All · Directory.Read.All</code>
-    </p>
-    <div class="form-row">
-      <label>Azure AD Client ID (Application ID)</label>
-      <input type="text" id="input-clientid" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
-      <div class="hint">Found in your app registration's Overview page in Entra.</div>
-    </div>
-    <div class="form-row">
-      <label>Redirect URI (this page)</label>
-      <input type="text" id="input-redirect" />
-      <div class="hint">Must exactly match the SPA redirect URI registered in your app.</div>
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-outline" onclick="closeConfig()">Cancel</button>
-      <button class="btn btn-primary" onclick="saveConfig()">Save & Close</button>
-    </div>
-  </div>
-</div>
+
 
 <!-- ══════════════════════ MAIN CONTENT ══════════════════════ -->
 <main>
@@ -642,13 +614,13 @@
     <div class="hero-icon">🔍</div>
     <h2>Check your tenant readiness for CUA</h2>
     <p>
-      This tool connects to your Microsoft tenant and automatically validates all the technical
-      prerequisites required to create and run <strong>Cloud PC pools</strong> for Computer Use Agent (CUA)
-      workloads in Microsoft Copilot Studio.
+      Sign in with your Microsoft Global Administrator account. This tool will automatically
+      validate all technical prerequisites required to run <strong>Cloud PC pools</strong>
+      for Computer Use Agent (CUA) workloads in Microsoft Copilot Studio.
     </p>
 
     <div class="signin-scopes">
-      <h4>What gets checked</h4>
+      <h4>What gets checked automatically</h4>
       <div class="scope-item"><span class="dot"></span>Windows 365 &amp; Azure Virtual Desktop service principals</div>
       <div class="scope-item"><span class="dot"></span>Microsoft Remote Desktop RDP authentication configuration</div>
       <div class="scope-item"><span class="dot"></span>Consent prompt suppression (targetDeviceGroups)</div>
@@ -657,16 +629,18 @@
       <div class="scope-item"><span class="dot"></span>Manual checklist for billing &amp; Power Platform</div>
     </div>
 
+    <div class="info-note" style="max-width:500px; margin: 0 auto 24px; text-align:left">
+      ℹ️ On first use, Microsoft will ask you to approve permissions on behalf of your organization.
+      This is a standard one-time consent for your tenant — no configuration needed.
+    </div>
+
     <p style="font-size:0.78rem; color:var(--muted); margin-bottom:20px;">
-      🔒 All checks run in your browser against your tenant directly via Microsoft Graph API.<br>
-      No data is sent to any external server.
+      🔒 All checks run in your browser. No data is sent to any external server.
     </p>
 
     <button class="btn btn-primary" style="font-size:0.95rem; padding:12px 28px;" onclick="signIn()">
-      🔐 Sign in with Microsoft to begin
+      🔐 Sign in with Microsoft
     </button>
-    <br><br>
-    <button class="btn btn-ghost" onclick="openConfig()">⚙️ Configure App Registration first</button>
   </div>
 
   <!-- Results area (hidden until signed in) -->
@@ -757,48 +731,26 @@
 <!-- ══════════════════════ JAVASCRIPT ══════════════════════ -->
 <script>
 /* ─────────────────────────────────────────────
-   CONFIG  (edit CLIENT_ID for your app reg)
+   CONFIG  — multi-tenant app, no user setup needed
 ───────────────────────────────────────────── */
-const DEFAULT_CONFIG = {
-  clientId: localStorage.getItem('cua_clientId') || 'YOUR_CLIENT_ID_HERE',
-  redirectUri: localStorage.getItem('cua_redirect') || window.location.href.split('?')[0].split('#')[0]
-};
+const CLIENT_ID   = 'YOUR_CLIENT_ID_HERE'; // <-- replaced by site owner once
+const REDIRECT_URI = window.location.href.split('?')[0].split('#')[0];
 
 let msalInstance = null;
 let graphToken   = null;
 
-function buildMsal(cfg) {
+function buildMsal() {
   return new msal.PublicClientApplication({
     auth: {
-      clientId:    cfg.clientId,
-      authority:   'https://login.microsoftonline.com/common',
-      redirectUri: cfg.redirectUri
+      clientId:    CLIENT_ID,
+      authority:   'https://login.microsoftonline.com/organizations',
+      redirectUri: REDIRECT_URI
     },
     cache: { cacheLocation: 'sessionStorage' }
   });
 }
 
-/* ─────────────────────────────────────────────
-   CONFIG MODAL
-───────────────────────────────────────────── */
-function openConfig() {
-  document.getElementById('input-clientid').value  = localStorage.getItem('cua_clientId') || '';
-  document.getElementById('input-redirect').value   = localStorage.getItem('cua_redirect') || DEFAULT_CONFIG.redirectUri;
-  document.getElementById('config-modal').classList.add('open');
-}
 
-function closeConfig() {
-  document.getElementById('config-modal').classList.remove('open');
-}
-
-function saveConfig() {
-  const cid = document.getElementById('input-clientid').value.trim();
-  const red  = document.getElementById('input-redirect').value.trim();
-  if (cid) { localStorage.setItem('cua_clientId', cid); DEFAULT_CONFIG.clientId = cid; }
-  if (red) { localStorage.setItem('cua_redirect', red);  DEFAULT_CONFIG.redirectUri = red; }
-  msalInstance = buildMsal(DEFAULT_CONFIG);
-  closeConfig();
-}
 
 /* ─────────────────────────────────────────────
    AUTH
@@ -812,16 +764,27 @@ const SCOPES = [
 ];
 
 async function signIn() {
-  if (!msalInstance) msalInstance = buildMsal(DEFAULT_CONFIG);
-  if (DEFAULT_CONFIG.clientId === 'YOUR_CLIENT_ID_HERE') {
-    alert('⚠️ Please configure your Azure AD App Registration Client ID first.\n\nClick "Configure App" in the header.');
-    openConfig();
+  if (!msalInstance) msalInstance = buildMsal();
+  if (CLIENT_ID === 'YOUR_CLIENT_ID_HERE') {
+    alert('⚠️ This tool has not been configured yet.\n\nThe site owner needs to register an Azure AD app and update the Client ID in index.html.');
     return;
   }
   try {
-    const resp = await msalInstance.loginPopup({ scopes: SCOPES });
+    const resp = await msalInstance.loginPopup({
+      scopes: SCOPES,
+      prompt: 'consent',            // triggers admin consent on first use per tenant
+      extraQueryParameters: { admin_consent: 'true' }
+    });
     onSignedIn(resp.account);
   } catch (e) {
+    // if user cancels consent, fall back to silent login if already consented
+    if (e.errorCode === 'user_cancelled' || e.errorCode === 'access_denied') {
+      try {
+        const resp2 = await msalInstance.loginPopup({ scopes: SCOPES });
+        onSignedIn(resp2.account);
+        return;
+      } catch {}
+    }
     console.error('Sign-in error:', e);
     alert('Sign-in failed: ' + (e.message || e));
   }
@@ -843,6 +806,8 @@ function signOut() {
   msalInstance?.logoutPopup().catch(() => {});
   location.reload();
 }
+
+
 
 function onSignedIn(account) {
   // UI switch
@@ -1348,8 +1313,7 @@ function exportResults() {
    INIT (handle redirect)
 ───────────────────────────────────────────── */
 (async function init() {
-  msalInstance = buildMsal(DEFAULT_CONFIG);
-  document.getElementById('input-redirect').value = DEFAULT_CONFIG.redirectUri;
+  msalInstance = buildMsal();
 
   try {
     await msalInstance.handleRedirectPromise();
