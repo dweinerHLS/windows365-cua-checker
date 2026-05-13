@@ -1180,33 +1180,33 @@ const PP_CHECKS = [
   {
     id: 'pp-copilot-authors-group',
     name: 'Security Group Assigned to Copilot Studio Authors',
-    scope: 'servicePrincipals/appRoleAssignedTo',
-    docUrl: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-licensing-subscriptions',
+    scope: 'Power Platform tenant settings',
+    docUrl: 'https://learn.microsoft.com/en-us/power-platform/admin/settings-copilot-studio',
     run: async () => {
       try {
-        // Look for the Copilot Studio / Power Virtual Agents service principal
-        const spResp = await graphGet("/servicePrincipals?$filter=startswith(displayName,'Copilot Studio') or startswith(displayName,'Power Virtual Agents')&$select=id,displayName,appId&$top=5");
-        let sp = spResp.value?.find(s => s.displayName?.includes('Copilot Studio')) || spResp.value?.[0];
-        // Fallback: try known Copilot Studio app IDs
-        if (!sp) {
-          const knownIds = ['96ff4394-9197-43aa-b393-6a41652b21a8', '27a9b44c-7067-4b5e-960e-6100683e48f7'];
-          for (const appId of knownIds) {
-            const r = await graphGet(`/servicePrincipals?$filter=appId eq '${appId}'&$select=id,displayName`);
-            if (r.value?.length) { sp = r.value[0]; break; }
+        // Try Power Platform tenant settings API
+        const data = await bapGet('https://api.bap.microsoft.com/providers/Microsoft.BusinessAppPlatform/scopes/admin/environments/tenantSettings?api-version=2023-06-01');
+        // The Copilot Studio authors setting is typically in powerPlatform.powerVirtualAgents or similar
+        const pva = data?.properties?.powerPlatform?.powerVirtualAgents
+                  || data?.powerPlatform?.powerVirtualAgents
+                  || data?.properties?.powerVirtualAgents;
+        const secGroupId = pva?.securityGroupId || pva?.botCreationSecurityGroupId || pva?.authorSecurityGroupId;
+        if (secGroupId && secGroupId !== '00000000-0000-0000-0000-000000000000') {
+          // Resolve group name via Graph
+          try {
+            const grp = await graphGet(`/groups/${secGroupId}?$select=displayName`);
+            return { status: 'pass', msg: `Security group assigned: ${grp.displayName} (${secGroupId})` };
+          } catch {
+            return { status: 'pass', msg: `Security group assigned: ${secGroupId}` };
           }
         }
-        if (!sp) return { status: 'warn', msg: 'Copilot Studio service principal not found in this tenant. Ensure Copilot Studio is provisioned.' };
-        // Check for appRoleAssignments (security groups / users assigned)
-        const assignments = await graphGet(`/servicePrincipals/${sp.id}/appRoleAssignedTo?$select=principalId,principalDisplayName,principalType&$top=50`);
-        const groups = (assignments.value || []).filter(a => a.principalType === 'Group');
-        if (groups.length > 0)
-          return { status: 'pass', msg: `Security group(s) assigned: ${groups.map(g => g.principalDisplayName).join(', ')}` };
-        const users = (assignments.value || []).filter(a => a.principalType === 'User');
-        if (users.length > 0)
-          return { status: 'warn', msg: `${users.length} user(s) assigned directly but no security group found. Best practice is to assign a security group.` };
-        return { status: 'warn', msg: `No security group assigned to "${sp.displayName}". Assign a security group in Entra ID → Enterprise Apps → ${sp.displayName} → Users and groups.` };
+        // Check if the setting exists but is set to "No" / empty
+        if (pva !== undefined)
+          return { status: 'fail', msg: 'No security group assigned to Copilot Studio authors. Set one in PPAC → Tenant settings → Copilot Studio authors.' };
+        // Could not find the property — may be a different API version / structure
+        return { status: 'warn', msg: 'Could not determine Copilot Studio authors setting from API. Check manually: PPAC → Tenant settings → Copilot Studio authors.' };
       } catch (e) {
-        return { status: 'warn', msg: `Could not check Copilot Studio author assignments: ${e.message}` };
+        return { status: 'warn', msg: `Could not check Copilot Studio authors setting: ${e.message}. Verify in PPAC → Tenant settings → Copilot Studio authors.` };
       }
     }
   }
