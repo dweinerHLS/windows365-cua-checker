@@ -5,8 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Windows 365 for Agents – CUA Prerequisite Checker</title>
 
-  <!-- MSAL Browser 2.38.3 (stable, well-tested) -->
+  <!-- MSAL Browser - try multiple CDNs for reliability -->
   <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+  <script>
+    if (typeof msal === 'undefined') { document.write('<script src="https://unpkg.com/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"><\/script>'); }
+  </script>
+  <script>
+    if (typeof msal === 'undefined') { document.write('<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"><\/script>'); }
+  </script>
 
   <style>
     :root {
@@ -730,6 +736,14 @@
 
 <!-- ══════════════════════ JAVASCRIPT ══════════════════════ -->
 <script>
+// Verify MSAL loaded
+if (typeof msal === 'undefined') {
+  document.addEventListener('DOMContentLoaded', function() {
+    document.querySelector('main').innerHTML = '<div style="text-align:center;padding:60px 20px;"><h2 style="color:#f25a5a;">⚠️ Failed to load Microsoft Authentication Library</h2><p style="color:#7a8ba0;margin-top:12px;">The MSAL library could not be loaded from any CDN. This may be caused by a network blocker, firewall, or ad blocker.</p><p style="color:#7a8ba0;margin-top:8px;">Try disabling your ad blocker or opening in an InPrivate/Incognito window.</p></div>';
+  });
+} else {
+  console.log('[CUA] MSAL loaded successfully, version:', msal.version);
+}
 /* ─────────────────────────────────────────────
    CONFIG  — multi-tenant app, no user setup needed
 ───────────────────────────────────────────── */
