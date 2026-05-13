@@ -761,6 +761,7 @@ const REDIRECT_URI = window.location.origin + window.location.pathname;
 
 let msalInstance = null;
 let graphToken   = null;
+let bapToken     = null;
 
 async function buildMsal() {
   const config = {
@@ -885,6 +886,19 @@ function onSignedIn(account) {
 /* ─────────────────────────────────────────────
    GRAPH HELPER
 ───────────────────────────────────────────── */
+function fetchWithTimeout(url, options, timeoutMs = 12000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
+}
+
+async function getBapToken() {
+  if (!msalInstance) msalInstance = await buildMsal();
+  const accounts = msalInstance.getAllAccounts();
+  if (!accounts.length) throw new Error('Not signed in');
+  const resp = await msalInstance.acquireTokenSilent({ scopes: ['https://api.powerplatform.com/.default'], account: accounts[0] });
+  return resp.accessToken;
+}
 
 async function graphGet(path) {
   if (!graphToken) graphToken = await getToken();
@@ -1115,26 +1129,46 @@ const PP_CHECKS = [
   {
     id: 'pp-billing',
     name: 'Pay-As-You-Go Billing or Copilot Studio License',
-    scope: 'organization/subscribedSKUs',
+    scope: 'Power Platform Billing API + subscribedSKUs',
     docUrl: 'https://learn.microsoft.com/en-us/power-platform/admin/pay-as-you-go-set-up?tabs=new',
     run: async () => {
+      // First try Power Platform billing API for pay-as-you-go details
       try {
-        const resp = await graphGet('/subscribedSkus?$select=skuPartNumber,skuId,capabilityStatus,consumedUnits,prepaidUnits');
+        const token = await getBapToken();
+        const resp = await fetchWithTimeout('https://api.powerplatform.com/licensing/billingPolicies?api-version=2022-03-01-preview', {
+          headers: { Authorization: 'Bearer ' + token }
+        }, 10000);
+        if (resp.ok) {
+          const data = await resp.json();
+          const policies = data.value || [];
+          if (policies.length > 0) {
+            const details = policies.map(p => {
+              const name = p.name || p.displayName || p.id || 'Unnamed';
+              const sub = p.billingInstrument?.subscriptionId || p.billingInstrument?.id || p.properties?.billingInstrument?.subscriptionId || '';
+              return sub ? `${name} (Subscription: ${sub})` : name;
+            });
+            return { status: 'pass', msg: `Billing plan(s) found: ${details.join('; ')}` };
+          }
+        }
+      } catch (e) {
+        // BAP API failed (CORS or token issue) — fall through to SKU check
+        console.log('[CUA] BAP billing API not reachable:', e.message);
+      }
+      // Fallback: check tenant SKUs via Graph
+      try {
+        const resp = await graphGet('/subscribedSkus?$select=skuPartNumber,skuId,capabilityStatus');
         const skus = resp.value || [];
-        // Look for Copilot Studio, Power Virtual Agents, or Power Platform related SKUs
         const ppPatterns = ['POWER_VIRTUAL_AGENTS','PVA','COPILOT_STUDIO','CCOF','VIRTUAL_AGENT','POWERAPPS','FLOW_PER_USER','POWERAUTOMATE','POWER_APPS'];
         const found = skus.filter(s => ppPatterns.some(p => s.skuPartNumber?.toUpperCase().includes(p)) && s.capabilityStatus === 'Enabled');
         if (found.length > 0)
           return { status: 'pass', msg: `Copilot Studio / Power Platform license found: ${found.map(s => s.skuPartNumber).join(', ')}` };
-        // Check for M365 E3/E5 which may include Power Platform
         const m365Patterns = ['SPE_E3','SPE_E5','M365_E3','M365_E5','ENTERPRISEPREMIUM','DEVELOPERPACK'];
         const m365 = skus.filter(s => m365Patterns.some(p => s.skuPartNumber?.toUpperCase().includes(p)) && s.capabilityStatus === 'Enabled');
         if (m365.length > 0)
-          return { status: 'pass', msg: `M365 license detected (${m365.map(s => s.skuPartNumber).join(', ')}). If using pay-as-you-go for CUA, verify it is linked in PPAC → Billing → Billing policies.` };
-        // No dedicated license found — pay-as-you-go doesn't appear as a SKU, so warn instead of fail
-        return { status: 'warn', msg: 'No Copilot Studio or M365 license detected in tenant SKUs. If you are using pay-as-you-go billing, this is expected — pay-as-you-go does not appear as a license. Verify in PPAC → Billing → Billing policies that a billing plan is active.' };
+          return { status: 'pass', msg: `M365 license detected (${m365.map(s => s.skuPartNumber).join(', ')}). If using pay-as-you-go for CUA, verify in PPAC → Billing → Billing policies.` };
+        return { status: 'warn', msg: 'Could not retrieve billing plan details from API. If using pay-as-you-go, this is expected from a browser. Verify in PPAC → Billing → Billing policies that a plan is active and linked to an Azure subscription.' };
       } catch (e) {
-        return { status: 'warn', msg: `Could not check licenses: ${e.message}. Verify billing in PPAC → Billing → Billing policies.` };
+        return { status: 'warn', msg: `Could not check billing: ${e.message}. Verify in PPAC → Billing → Billing policies.` };
       }
     }
   }
@@ -1241,6 +1275,7 @@ let checkResults = {};
 
 async function runAllChecks() {
   graphToken = null; // force fresh token
+  bapToken = null;
   checkResults = {};
   const allChecks = [...SP_CHECKS, ...RDP_CHECKS, ...INTUNE_CHECKS, ...PP_CHECKS];
   const total = allChecks.length;
