@@ -1114,7 +1114,7 @@ const INTUNE_CHECKS = [
 const PP_CHECKS = [
   {
     id: 'pp-billing',
-    name: 'Pay-As-You-Go or Copilot Studio License',
+    name: 'Pay-As-You-Go Billing or Copilot Studio License',
     scope: 'organization/subscribedSKUs',
     docUrl: 'https://learn.microsoft.com/en-us/power-platform/admin/pay-as-you-go-set-up?tabs=new',
     run: async () => {
@@ -1130,8 +1130,9 @@ const PP_CHECKS = [
         const m365Patterns = ['SPE_E3','SPE_E5','M365_E3','M365_E5','ENTERPRISEPREMIUM','DEVELOPERPACK'];
         const m365 = skus.filter(s => m365Patterns.some(p => s.skuPartNumber?.toUpperCase().includes(p)) && s.capabilityStatus === 'Enabled');
         if (m365.length > 0)
-          return { status: 'warn', msg: `No dedicated Copilot Studio license found, but M365 license detected (${m365.map(s => s.skuPartNumber).join(', ')}). Verify a pay-as-you-go billing plan is linked in PPAC → Billing → Billing policies for CUA usage.` };
-        return { status: 'fail', msg: 'No Copilot Studio or Power Platform license found. Link an Azure subscription via pay-as-you-go in Power Platform admin center or assign a Copilot Studio license.' };
+          return { status: 'pass', msg: `M365 license detected (${m365.map(s => s.skuPartNumber).join(', ')}). If using pay-as-you-go for CUA, verify it is linked in PPAC → Billing → Billing policies.` };
+        // No dedicated license found — pay-as-you-go doesn't appear as a SKU, so warn instead of fail
+        return { status: 'warn', msg: 'No Copilot Studio or M365 license detected in tenant SKUs. If you are using pay-as-you-go billing, this is expected — pay-as-you-go does not appear as a license. Verify in PPAC → Billing → Billing policies that a billing plan is active.' };
       } catch (e) {
         return { status: 'warn', msg: `Could not check licenses: ${e.message}. Verify billing in PPAC → Billing → Billing policies.` };
       }
