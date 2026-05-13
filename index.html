@@ -1176,51 +1176,6 @@ const PP_CHECKS = [
         return { status: 'warn', msg: `Could not check billing: ${e.message}. Verify manually in PPAC → Billing → Billing policies.` };
       }
     }
-  },
-  {
-    id: 'pp-environments',
-    name: 'Power Platform Environment Available',
-    scope: 'EnvironmentManagement.Environments.Read',
-    docUrl: 'https://learn.microsoft.com/en-us/power-platform/admin/environments-overview',
-    run: async () => {
-      try {
-        const data = await bapGet('https://api.powerplatform.com/appmanagement/environments?api-version=2022-03-01-preview');
-        const envs = data.value || [];
-        if (envs.length > 0)
-          return { status: 'pass', msg: `${envs.length} environment(s) found: ${envs.slice(0,3).map(e => e.properties?.displayName || e.name).join(', ')}${envs.length > 3 ? '...' : ''}` };
-        return { status: 'fail', msg: 'No environments found. At least one Power Platform environment is required.' };
-      } catch (e) {
-        // Try alternative BAP endpoint
-        try {
-          const data2 = await bapGet('https://api.bap.microsoft.com/providers/Microsoft.BusinessAppPlatform/scopes/admin/environments?api-version=2023-06-01');
-          const envs = data2.value || [];
-          if (envs.length > 0)
-            return { status: 'pass', msg: `${envs.length} environment(s) found` };
-          return { status: 'fail', msg: 'No environments found.' };
-        } catch (e2) {
-          return { status: 'warn', msg: `Could not list environments: ${e.message}. Verify in Power Platform admin center → Environments.` };
-        }
-      }
-    }
-  },
-  {
-    id: 'pp-cloudpc',
-    name: 'Cloud PC (Computer Use) Feature Enabled',
-    scope: 'CopilotGovernance.Settings.Read',
-    docUrl: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/use-cloud-pc-pool',
-    run: async () => {
-      try {
-        const data = await bapGet('https://api.powerplatform.com/governance/copilot/settings?api-version=2022-03-01-preview');
-        const cloudPcEnabled = data?.cloudPc?.enabled ?? data?.computerUse?.enabled ?? data?.features?.cloudPc;
-        if (cloudPcEnabled === true)
-          return { status: 'pass', msg: 'Cloud PC (Computer Use) feature is enabled in the tenant.' };
-        if (cloudPcEnabled === false)
-          return { status: 'fail', msg: 'Cloud PC feature is disabled. Enable in PPAC → Copilot → Settings → Computer Use → Cloud PC.' };
-        return { status: 'warn', msg: 'Could not determine Cloud PC status from API. Check manually: PPAC → Copilot → Settings → Computer Use → Cloud PC.' };
-      } catch (e) {
-        return { status: 'warn', msg: `Could not check Cloud PC feature via API: ${e.message}. Verify manually in PPAC → Copilot → Settings → Computer Use.` };
-      }
-    }
   }
 ];
 
