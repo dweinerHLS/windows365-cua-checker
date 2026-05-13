@@ -632,7 +632,8 @@
       <div class="scope-item"><span class="dot"></span>Consent prompt suppression (targetDeviceGroups)</div>
       <div class="scope-item"><span class="dot"></span>Intune device enrollment restrictions</div>
       <div class="scope-item"><span class="dot"></span>Entra ID P1 / admin role assignment</div>
-      <div class="scope-item"><span class="dot"></span>Manual checklist for billing &amp; Power Platform</div>
+      <div class="scope-item"><span class="dot"></span>Power Platform billing, environments &amp; Cloud PC feature</div>
+      <div class="scope-item"><span class="dot"></span>Manual checklist for remaining items</div>
     </div>
 
     <div class="info-note" style="max-width:500px; margin: 0 auto 24px; text-align:left">
@@ -711,7 +712,15 @@
     </div>
     <div class="checks-grid" id="grid-intune"></div>
 
-    <!-- ── Section 4: Manual Checklist ── -->
+    <!-- ── Section 4: Power Platform Configuration ── -->
+    <div class="section-header">
+      <span class="section-icon">⚡</span>
+      <span class="section-title">Power Platform Configuration</span>
+      <span class="section-desc">Automated · Power Platform API</span>
+    </div>
+    <div class="checks-grid" id="grid-pp"></div>
+
+    <!-- ── Section 5: Manual Checklist ── -->
     <div class="section-header">
       <span class="section-icon">📋</span>
       <span class="section-title">Manual Verification Checklist</span>
@@ -752,6 +761,7 @@ const REDIRECT_URI = window.location.origin + window.location.pathname;
 
 let msalInstance = null;
 let graphToken   = null;
+let bapToken     = null;
 
 async function buildMsal() {
   const config = {
@@ -876,6 +886,37 @@ function onSignedIn(account) {
 /* ─────────────────────────────────────────────
    GRAPH HELPER
 ───────────────────────────────────────────── */
+/* ─────────────────────────────────────────────
+   POWER PLATFORM API HELPER
+───────────────────────────────────────────── */
+const BAP_SCOPES = ['https://api.powerplatform.com/.default'];
+
+async function getBapToken() {
+  if (!msalInstance) msalInstance = await buildMsal();
+  const accounts = msalInstance.getAllAccounts();
+  if (!accounts.length) throw new Error('Not signed in');
+  try {
+    const resp = await msalInstance.acquireTokenSilent({ scopes: BAP_SCOPES, account: accounts[0] });
+    return resp.accessToken;
+  } catch {
+    await msalInstance.acquireTokenRedirect({ scopes: BAP_SCOPES, account: accounts[0] });
+    return null;
+  }
+}
+
+async function bapGet(url) {
+  if (!bapToken) bapToken = await getBapToken();
+  const resp = await fetch(url, {
+    headers: { Authorization: 'Bearer ' + bapToken }
+  });
+  if (resp.status === 401) { bapToken = null; bapToken = await getBapToken(); return bapGet(url); }
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({ error: { message: resp.statusText } }));
+    throw new Error(err?.error?.message || resp.statusText);
+  }
+  return resp.json();
+}
+
 async function graphGet(path) {
   if (!graphToken) graphToken = await getToken();
   const resp = await fetch('https://graph.microsoft.com/v1.0' + path, {
@@ -1099,30 +1140,82 @@ const INTUNE_CHECKS = [
 ];
 
 /* ─────────────────────────────────────────────
+   POWER PLATFORM CHECKS
+───────────────────────────────────────────── */
+const PP_CHECKS = [
+  {
+    id: 'pp-billing',
+    name: 'Pay-As-You-Go Billing Plan Linked',
+    scope: 'Licensing.BillingPolicies.Read',
+    docUrl: 'https://learn.microsoft.com/en-us/power-platform/admin/pay-as-you-go-set-up?tabs=new',
+    run: async () => {
+      try {
+        const data = await bapGet('https://api.powerplatform.com/licensing/billingPolicies?api-version=2022-03-01-preview');
+        const policies = data.value || [];
+        const active = policies.filter(p => p.status === 'Enabled' || p.billingInstrument);
+        if (active.length > 0)
+          return { status: 'pass', msg: `${active.length} active billing policy/policies found: ${active.map(p => p.name || p.id).join(', ')}` };
+        if (policies.length > 0)
+          return { status: 'warn', msg: `${policies.length} billing policy/policies found but none appear active. Verify in PPAC → Billing → Billing policies.` };
+        return { status: 'fail', msg: 'No billing policies configured. Link an Azure subscription via pay-as-you-go in Power Platform admin center.' };
+      } catch (e) {
+        if (e.message?.includes('403') || e.message?.includes('Forbidden'))
+          return { status: 'warn', msg: 'Insufficient permissions to read billing policies. Check manually in PPAC → Billing → Billing policies.' };
+        return { status: 'warn', msg: `Could not check billing: ${e.message}. Verify manually in PPAC → Billing → Billing policies.` };
+      }
+    }
+  },
+  {
+    id: 'pp-environments',
+    name: 'Power Platform Environment Available',
+    scope: 'EnvironmentManagement.Environments.Read',
+    docUrl: 'https://learn.microsoft.com/en-us/power-platform/admin/environments-overview',
+    run: async () => {
+      try {
+        const data = await bapGet('https://api.powerplatform.com/appmanagement/environments?api-version=2022-03-01-preview');
+        const envs = data.value || [];
+        if (envs.length > 0)
+          return { status: 'pass', msg: `${envs.length} environment(s) found: ${envs.slice(0,3).map(e => e.properties?.displayName || e.name).join(', ')}${envs.length > 3 ? '...' : ''}` };
+        return { status: 'fail', msg: 'No environments found. At least one Power Platform environment is required.' };
+      } catch (e) {
+        // Try alternative BAP endpoint
+        try {
+          const data2 = await bapGet('https://api.bap.microsoft.com/providers/Microsoft.BusinessAppPlatform/scopes/admin/environments?api-version=2023-06-01');
+          const envs = data2.value || [];
+          if (envs.length > 0)
+            return { status: 'pass', msg: `${envs.length} environment(s) found` };
+          return { status: 'fail', msg: 'No environments found.' };
+        } catch (e2) {
+          return { status: 'warn', msg: `Could not list environments: ${e.message}. Verify in Power Platform admin center → Environments.` };
+        }
+      }
+    }
+  },
+  {
+    id: 'pp-cloudpc',
+    name: 'Cloud PC (Computer Use) Feature Enabled',
+    scope: 'CopilotGovernance.Settings.Read',
+    docUrl: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/use-cloud-pc-pool',
+    run: async () => {
+      try {
+        const data = await bapGet('https://api.powerplatform.com/governance/copilot/settings?api-version=2022-03-01-preview');
+        const cloudPcEnabled = data?.cloudPc?.enabled ?? data?.computerUse?.enabled ?? data?.features?.cloudPc;
+        if (cloudPcEnabled === true)
+          return { status: 'pass', msg: 'Cloud PC (Computer Use) feature is enabled in the tenant.' };
+        if (cloudPcEnabled === false)
+          return { status: 'fail', msg: 'Cloud PC feature is disabled. Enable in PPAC → Copilot → Settings → Computer Use → Cloud PC.' };
+        return { status: 'warn', msg: 'Could not determine Cloud PC status from API. Check manually: PPAC → Copilot → Settings → Computer Use → Cloud PC.' };
+      } catch (e) {
+        return { status: 'warn', msg: `Could not check Cloud PC feature via API: ${e.message}. Verify manually in PPAC → Copilot → Settings → Computer Use.` };
+      }
+    }
+  }
+];
+
+/* ─────────────────────────────────────────────
    MANUAL CHECKLIST ITEMS
 ───────────────────────────────────────────── */
 const MANUAL_ITEMS = [
-  {
-    id: 'manual-azure-sub',
-    title: 'Azure Subscription linked to Power Platform environment',
-    desc: 'A valid Azure subscription must be linked to your Power Platform environment via a pay-as-you-go billing plan.',
-    link: 'https://learn.microsoft.com/en-us/power-platform/admin/pay-as-you-go-set-up?tabs=new',
-    linkText: 'Set up Pay-As-You-Go →'
-  },
-  {
-    id: 'manual-copilot-addon',
-    title: 'Copilot Studio Add-on enabled in tenant',
-    desc: 'The Copilot Studio add-on must be enabled in the tenant (Additional content in tenant management). Note: can take up to 24 hours to provision.',
-    link: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/requirements-licensing-subscriptions',
-    linkText: 'Licensing guide →'
-  },
-  {
-    id: 'manual-ppac-cloudpc',
-    title: 'Cloud PC feature enabled in Power Platform admin center',
-    desc: 'In Power Platform admin center → Copilot → Settings → Computer Use → check "Cloud PC" for target environments.',
-    link: 'https://admin.powerplatform.microsoft.com/',
-    linkText: 'Power Platform admin center →'
-  },
   {
     id: 'manual-cross-geo',
     title: 'Cross-geo support enabled (if environment is outside tenant region)',
@@ -1160,6 +1253,7 @@ function buildCards() {
   buildGrid('grid-sps', SP_CHECKS);
   buildGrid('grid-rdp', RDP_CHECKS);
   buildGrid('grid-intune', INTUNE_CHECKS);
+  buildGrid('grid-pp', PP_CHECKS);
 }
 
 function buildGrid(containerId, checks) {
@@ -1219,8 +1313,9 @@ let checkResults = {};
 
 async function runAllChecks() {
   graphToken = null; // force fresh token
+  bapToken = null;
   checkResults = {};
-  const allChecks = [...SP_CHECKS, ...RDP_CHECKS, ...INTUNE_CHECKS];
+  const allChecks = [...SP_CHECKS, ...RDP_CHECKS, ...INTUNE_CHECKS, ...PP_CHECKS];
   const total = allChecks.length;
   let done = 0;
 
@@ -1252,6 +1347,7 @@ async function runAllChecks() {
   await runGroup(SP_CHECKS);
   await runGroup(RDP_CHECKS);
   await runGroup(INTUNE_CHECKS);
+  await runGroup(PP_CHECKS);
 
   document.getElementById('progress-bar-wrap').style.display = 'none';
   document.getElementById('last-run-label').textContent = 'Last run: ' + new Date().toLocaleTimeString();
@@ -1328,8 +1424,8 @@ function exportResults() {
     ''
   ];
 
-  const allChecks = [...SP_CHECKS, ...RDP_CHECKS, ...INTUNE_CHECKS];
-  allChecks.forEach(chk => {
+  const allExportChecks = [...SP_CHECKS, ...RDP_CHECKS, ...INTUNE_CHECKS, ...PP_CHECKS];
+  allExportChecks.forEach(chk => {
     const card = document.getElementById('card-' + chk.id);
     const msg  = document.getElementById('msg-' + chk.id);
     const pill = document.getElementById('pill-' + chk.id);
