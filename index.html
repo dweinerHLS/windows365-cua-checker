@@ -761,7 +761,6 @@ const REDIRECT_URI = window.location.origin + window.location.pathname;
 
 let msalInstance = null;
 let graphToken   = null;
-let bapToken     = null;
 
 async function buildMsal() {
   const config = {
@@ -886,48 +885,6 @@ function onSignedIn(account) {
 /* ─────────────────────────────────────────────
    GRAPH HELPER
 ───────────────────────────────────────────── */
-/* ─────────────────────────────────────────────
-   POWER PLATFORM API HELPER
-───────────────────────────────────────────── */
-const BAP_SCOPES = ['https://api.powerplatform.com/.default'];
-
-async function getBapToken() {
-  if (!msalInstance) msalInstance = await buildMsal();
-  const accounts = msalInstance.getAllAccounts();
-  if (!accounts.length) throw new Error('Not signed in');
-  try {
-    const resp = await msalInstance.acquireTokenSilent({ scopes: BAP_SCOPES, account: accounts[0] });
-    return resp.accessToken;
-  } catch (e) {
-    // Don't redirect during check run — just report the error
-    throw new Error('Power Platform token not available. You may need to consent to Power Platform permissions. Sign out and sign back in to trigger consent.');
-  }
-}
-
-function fetchWithTimeout(url, options, timeoutMs = 10000) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
-}
-
-async function bapGet(url) {
-  if (!bapToken) bapToken = await getBapToken();
-  let resp;
-  try {
-    resp = await fetchWithTimeout(url, {
-      headers: { Authorization: 'Bearer ' + bapToken }
-    }, 12000);
-  } catch (e) {
-    if (e.name === 'AbortError') throw new Error('Request timed out — Power Platform API may not be reachable from the browser (CORS).');
-    throw new Error('Network error calling Power Platform API: ' + e.message + '. The API may not support browser (CORS) requests.');
-  }
-  if (resp.status === 401) { bapToken = null; bapToken = await getBapToken(); return bapGet(url); }
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({ error: { message: resp.statusText } }));
-    throw new Error(err?.error?.message || resp.statusText);
-  }
-  return resp.json();
-}
 
 async function graphGet(path) {
   if (!graphToken) graphToken = await getToken();
@@ -1156,57 +1113,39 @@ const INTUNE_CHECKS = [
 ───────────────────────────────────────────── */
 const PP_CHECKS = [
   {
-    id: 'pp-billing',
-    name: 'Pay-As-You-Go Billing Plan Linked',
-    scope: 'Licensing.BillingPolicies.Read',
-    docUrl: 'https://learn.microsoft.com/en-us/power-platform/admin/pay-as-you-go-set-up?tabs=new',
-    run: async () => {
-      try {
-        const data = await bapGet('https://api.powerplatform.com/licensing/billingPolicies?api-version=2022-03-01-preview');
-        const policies = data.value || [];
-        const active = policies.filter(p => p.status === 'Enabled' || p.billingInstrument);
-        if (active.length > 0)
-          return { status: 'pass', msg: `${active.length} active billing policy/policies found: ${active.map(p => p.name || p.id).join(', ')}` };
-        if (policies.length > 0)
-          return { status: 'warn', msg: `${policies.length} billing policy/policies found but none appear active. Verify in PPAC → Billing → Billing policies.` };
-        return { status: 'fail', msg: 'No billing policies configured. Link an Azure subscription via pay-as-you-go in Power Platform admin center.' };
-      } catch (e) {
-        if (e.message?.includes('403') || e.message?.includes('Forbidden'))
-          return { status: 'warn', msg: 'Insufficient permissions to read billing policies. Check manually in PPAC → Billing → Billing policies.' };
-        return { status: 'warn', msg: `Could not check billing: ${e.message}. Verify manually in PPAC → Billing → Billing policies.` };
-      }
-    }
-  },
-  {
     id: 'pp-copilot-authors-group',
     name: 'Security Group Assigned to Copilot Studio Authors',
-    scope: 'Power Platform tenant settings',
-    docUrl: 'https://learn.microsoft.com/en-us/power-platform/admin/settings-copilot-studio',
+    scope: 'servicePrincipals · appRoleAssignedTo',
+    docUrl: 'https://learn.microsoft.com/en-us/power-platform/admin/managed-environment-enable#configure-copilot-studio-components',
     run: async () => {
       try {
-        // Try Power Platform tenant settings API
-        const data = await bapGet('https://api.bap.microsoft.com/providers/Microsoft.BusinessAppPlatform/scopes/admin/environments/tenantSettings?api-version=2023-06-01');
-        // The Copilot Studio authors setting is typically in powerPlatform.powerVirtualAgents or similar
-        const pva = data?.properties?.powerPlatform?.powerVirtualAgents
-                  || data?.powerPlatform?.powerVirtualAgents
-                  || data?.properties?.powerVirtualAgents;
-        const secGroupId = pva?.securityGroupId || pva?.botCreationSecurityGroupId || pva?.authorSecurityGroupId;
-        if (secGroupId && secGroupId !== '00000000-0000-0000-0000-000000000000') {
-          // Resolve group name via Graph
-          try {
-            const grp = await graphGet(`/groups/${secGroupId}?$select=displayName`);
-            return { status: 'pass', msg: `Security group assigned: ${grp.displayName} (${secGroupId})` };
-          } catch {
-            return { status: 'pass', msg: `Security group assigned: ${secGroupId}` };
-          }
+        // Find the Power Virtual Agents / Copilot Studio service principal
+        const knownIds = ['96ff4394-9197-43aa-b393-6a41652b21a8', '27a9b44c-7067-4b5e-960e-6100683e48f7'];
+        let sp = null;
+        for (const appId of knownIds) {
+          const r = await graphGet(`/servicePrincipals?$filter=appId eq '${appId}'&$select=id,displayName,appRoleAssignmentRequired`);
+          if (r.value?.length) { sp = r.value[0]; break; }
         }
-        // Check if the setting exists but is set to "No" / empty
-        if (pva !== undefined)
-          return { status: 'fail', msg: 'No security group assigned to Copilot Studio authors. Set one in PPAC → Tenant settings → Copilot Studio authors.' };
-        // Could not find the property — may be a different API version / structure
-        return { status: 'warn', msg: 'Could not determine Copilot Studio authors setting from API. Check manually: PPAC → Tenant settings → Copilot Studio authors.' };
+        // Also try searching by name
+        if (!sp) {
+          const nameSearch = await graphGet("/servicePrincipals?$filter=startswith(displayName,'Power Virtual Agents') or startswith(displayName,'Copilot Studio')&$select=id,displayName,appRoleAssignmentRequired&$top=5");
+          sp = nameSearch.value?.find(s => s.displayName?.includes('Copilot Studio') || s.displayName?.includes('Power Virtual Agents'));
+        }
+        if (!sp) return { status: 'warn', msg: 'Copilot Studio / Power Virtual Agents service principal not found in tenant. Ensure Copilot Studio is provisioned.' };
+        // Check if assignment is required (i.e. restricted to assigned users/groups)
+        if (!sp.appRoleAssignmentRequired)
+          return { status: 'warn', msg: `"${sp.displayName}" found but assignment is not required — all users can access. To restrict, enable "Assignment required" and assign a security group in Entra ID → Enterprise Apps → ${sp.displayName} → Properties & Users and groups.` };
+        // Get assigned groups
+        const assignments = await graphGet(`/servicePrincipals/${sp.id}/appRoleAssignedTo?$select=principalId,principalDisplayName,principalType&$top=50`);
+        const groups = (assignments.value || []).filter(a => a.principalType === 'Group');
+        if (groups.length > 0)
+          return { status: 'pass', msg: `Security group(s) assigned: ${groups.map(g => g.principalDisplayName).join(', ')}` };
+        const users = (assignments.value || []).filter(a => a.principalType === 'User');
+        if (users.length > 0)
+          return { status: 'warn', msg: `${users.length} user(s) assigned directly but no security group found. Best practice is to assign a security group.` };
+        return { status: 'fail', msg: `"${sp.displayName}" has assignment required but no users or groups assigned. Assign a security group in Entra ID → Enterprise Apps → ${sp.displayName} → Users and groups.` };
       } catch (e) {
-        return { status: 'warn', msg: `Could not check Copilot Studio authors setting: ${e.message}. Verify in PPAC → Tenant settings → Copilot Studio authors.` };
+        return { status: 'warn', msg: `Could not check Copilot Studio author assignments: ${e.message}` };
       }
     }
   }
@@ -1216,6 +1155,13 @@ const PP_CHECKS = [
    MANUAL CHECKLIST ITEMS
 ───────────────────────────────────────────── */
 const MANUAL_ITEMS = [
+  {
+    id: 'manual-azure-sub',
+    title: 'Azure Subscription linked to Power Platform (Pay-As-You-Go)',
+    desc: 'A valid Azure subscription must be linked to your Power Platform environment via a pay-as-you-go billing plan. Verify in PPAC → Billing → Billing policies.',
+    link: 'https://learn.microsoft.com/en-us/power-platform/admin/pay-as-you-go-set-up?tabs=new',
+    linkText: 'Set up Pay-As-You-Go →'
+  },
   {
     id: 'manual-cross-geo',
     title: 'Cross-geo support enabled (if environment is outside tenant region)',
@@ -1313,7 +1259,6 @@ let checkResults = {};
 
 async function runAllChecks() {
   graphToken = null; // force fresh token
-  bapToken = null;
   checkResults = {};
   const allChecks = [...SP_CHECKS, ...RDP_CHECKS, ...INTUNE_CHECKS, ...PP_CHECKS];
   const total = allChecks.length;
