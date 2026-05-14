@@ -880,8 +880,9 @@ function onSignedIn(account) {
   document.getElementById('user-tenant-display').textContent = 'Tenant: ' + (account.tenantId || account.username.split('@')[1] || '—');
 
   // Save tenant ID for deployment page
-  if (account.tenantId) {
-    localStorage.setItem('cua_tenant_id', account.tenantId);
+  const tid = account.tenantId || (account.idTokenClaims && account.idTokenClaims.tid) || '';
+  if (tid) {
+    localStorage.setItem('cua_tenant_id', tid);
   }
 
   // Build card scaffolding
@@ -1358,6 +1359,13 @@ async function runAllChecks() {
   // Save results to localStorage for the Deployment Guide page
   localStorage.setItem('cua_check_results', JSON.stringify(checkResults));
   localStorage.setItem('cua_check_messages', JSON.stringify(checkMessages));
+
+  // Also ensure tenant ID is saved (in case sign-in predates this code)
+  const accts = msalInstance.getAllAccounts();
+  if (accts.length > 0) {
+    const tid = accts[0].tenantId || (accts[0].idTokenClaims && accts[0].idTokenClaims.tid) || '';
+    if (tid) localStorage.setItem('cua_tenant_id', tid);
+  }
 }
 
 function setCardLoading(id) {

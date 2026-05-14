@@ -616,7 +616,7 @@ function fillTenantId() {
   const tenantId = localStorage.getItem('cua_tenant_id');
   if (!tenantId) return;
   document.querySelectorAll('.cmd-code').forEach(el => {
-    el.textContent = el.textContent.replace(/YOUR_TENANT_ID/g, tenantId);
+    el.innerHTML = el.innerHTML.replace(/YOUR_TENANT_ID/g, tenantId);
   });
 }
 
