@@ -1142,11 +1142,19 @@ const INTUNE_CHECKS = [
     docUrl: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/use-cloud-pc-pool#steps-to-hide-the-consent-prompt-dialog',
     run: async () => {
       try {
-        const resp = await graphGet("/groups?$filter=groupTypes/any(c:c eq 'DynamicMembership')&$select=id,displayName,membershipRule&$top=5");
+        const resp = await graphGet("/groups?$filter=groupTypes/any(c:c eq 'DynamicMembership')&$select=id,displayName,membershipRule&$top=50");
         const grps = resp.value || [];
-        const cpcGroups = grps.filter(g => g.membershipRule?.includes('CPCPool_'));
-        if (cpcGroups.length) return { status: 'pass', msg: `CUA dynamic group found: ${cpcGroups[0].displayName}` };
-        if (grps.length) return { status: 'warn', msg: `Tenant supports dynamic groups (${grps.length} found) but no CPCPool_ group detected. Create a dynamic group with rule: (device.enrollmentProfileName -startsWith "CPCPool_")` };
+        // Look for any dynamic group whose membership rule references enrollmentProfileName (Cloud PC pool)
+        const enrollGroups = grps.filter(g => g.membershipRule && /enrollmentProfileName/i.test(g.membershipRule));
+        if (enrollGroups.length) {
+          const cpcPoolGroups = enrollGroups.filter(g => g.membershipRule.includes('CPCPool_'));
+          if (cpcPoolGroups.length) {
+            return { status: 'pass', msg: `CUA dynamic group found: ${cpcPoolGroups[0].displayName}` };
+          }
+          // Group exists but uses non-standard naming
+          return { status: 'warn', msg: `Dynamic group "${enrollGroups[0].displayName}" uses enrollmentProfileName but does not follow the recommended CPCPool_ naming convention. The documentation recommends: (device.enrollmentProfileName -startsWith "CPCPool_"). If your Cloud PC pool is not named with the CPCPool_ prefix, this is expected.` };
+        }
+        if (grps.length) return { status: 'warn', msg: `Tenant supports dynamic groups (${grps.length} found) but no Cloud PC enrollment profile group detected. Create a dynamic group with rule: (device.enrollmentProfileName -startsWith "CPCPool_")` };
         return { status: 'warn', msg: 'No dynamic groups found — required for consent prompt suppression. Requires Entra ID P1.' };
       } catch (e) {
         return { status: 'warn', msg: `Could not check: ${e.message}` };
