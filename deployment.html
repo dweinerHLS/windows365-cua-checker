@@ -256,7 +256,93 @@
   <div class="intro-note">
     ℹ️ This guide shows remediation steps <strong>only for items that failed or have warnings</strong> from your last check run.
     Run all checks on the <a href="index.html">main page</a> first, then return here for step-by-step fix instructions.
-    All PowerShell commands should be run in an <strong>elevated PowerShell 7+ terminal</strong> connected to Microsoft Graph.
+  </div>
+
+  <!-- PowerShell Prerequisites (always shown) -->
+  <div class="step-section" id="prereqs-section">
+    <div class="step-header">
+      <div class="step-number" style="background:linear-gradient(135deg,#6a5acd,#9370db)">⚙</div>
+      <div class="step-title">PowerShell Prerequisites</div>
+      <span class="step-status" style="background:rgba(80,200,232,0.15);color:var(--accent2)">SETUP</span>
+    </div>
+    <div class="step-body">
+      <div class="step-desc">
+        Complete these steps <strong>before</strong> running any remediation commands below.
+      </div>
+      <div class="step-desc">
+        <ol>
+          <li><strong>Install PowerShell 7+</strong> — Windows PowerShell 5.1 (built-in) does NOT support the Microsoft Graph module reliably. Download PowerShell 7 from <a href="https://aka.ms/install-powershell" target="_blank">aka.ms/install-powershell</a> or run:<br>
+          <code>winget install --id Microsoft.PowerShell --source winget</code></li>
+          <li><strong>Set Execution Policy</strong> — Allow running scripts in your session</li>
+          <li><strong>Install NuGet Package Provider</strong> — Required by Install-Module</li>
+          <li><strong>Install Microsoft.Graph Module</strong> — The Graph PowerShell SDK</li>
+          <li><strong>Disconnect any existing session</strong> — Ensures you log in fresh to the correct tenant</li>
+          <li><strong>Connect to Microsoft Graph</strong> — Authenticates to your target tenant (a browser sign-in window will open)</li>
+        </ol>
+      </div>
+
+      <div class="cmd-block">
+        <div class="cmd-label">
+          <span>Step 1 — Install PowerShell 7 (if not installed)</span>
+          <button class="copy-btn" onclick="copyCmd(this)">📋 Copy</button>
+        </div>
+        <div class="cmd-code">winget install --id Microsoft.PowerShell --source winget</div>
+      </div>
+
+      <div class="cmd-block">
+        <div class="cmd-label">
+          <span>Step 2 — Set Execution Policy (run in PowerShell 7 as Admin)</span>
+          <button class="copy-btn" onclick="copyCmd(this)">📋 Copy</button>
+        </div>
+        <div class="cmd-code">Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force</div>
+      </div>
+
+      <div class="cmd-block">
+        <div class="cmd-label">
+          <span>Step 3 — Install NuGet Provider</span>
+          <button class="copy-btn" onclick="copyCmd(this)">📋 Copy</button>
+        </div>
+        <div class="cmd-code">Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Scope CurrentUser</div>
+      </div>
+
+      <div class="cmd-block">
+        <div class="cmd-label">
+          <span>Step 4 — Install Microsoft.Graph Module</span>
+          <button class="copy-btn" onclick="copyCmd(this)">📋 Copy</button>
+        </div>
+        <div class="cmd-code">Install-Module Microsoft.Graph -Scope CurrentUser -Repository PSGallery -Force</div>
+      </div>
+
+      <div class="cmd-block">
+        <div class="cmd-label">
+          <span>Step 5 — Verify Module Installed</span>
+          <button class="copy-btn" onclick="copyCmd(this)">📋 Copy</button>
+        </div>
+        <div class="cmd-code">Get-InstalledModule Microsoft.Graph | Format-List Name, Version</div>
+      </div>
+
+      <div class="cmd-block">
+        <div class="cmd-label">
+          <span>Step 6 — Disconnect Existing Session &amp; Connect to Target Tenant</span>
+          <button class="copy-btn" onclick="copyCmd(this)">📋 Copy</button>
+        </div>
+        <div class="cmd-code">Disconnect-MgGraph -ErrorAction SilentlyContinue
+Connect-MgGraph -TenantId "YOUR_TENANT_ID" -Scopes "Application.ReadWrite.All","Application-RemoteDesktopConfig.ReadWrite.All","Group.ReadWrite.All","Directory.Read.All","RoleManagement.ReadWrite.Directory","DeviceManagementConfiguration.Read.All"</div>
+      </div>
+
+      <div class="cmd-block">
+        <div class="cmd-label">
+          <span>Step 7 — Verify Connection</span>
+          <button class="copy-btn" onclick="copyCmd(this)">📋 Copy</button>
+        </div>
+        <div class="cmd-code">Get-MgContext | Format-List Account, TenantId, Scopes</div>
+      </div>
+
+      <div class="step-links">
+        <a class="step-link" href="https://learn.microsoft.com/en-us/powershell/microsoftgraph/installation" target="_blank">📖 Graph PowerShell Installation Docs</a>
+        <a class="step-link" href="https://aka.ms/install-powershell" target="_blank">📖 Install PowerShell 7</a>
+      </div>
+    </div>
   </div>
 
   <div id="steps-container"></div>
@@ -285,15 +371,11 @@ const STEPS = {
     title: 'Create Windows 365 Service Principal',
     desc: `The Windows 365 service principal is required for Cloud PC provisioning. It must be registered in your Entra ID tenant.`,
     instructions: `<ol>
-      <li>Open an elevated <strong>PowerShell 7+</strong> terminal</li>
-      <li>Install the Microsoft Graph PowerShell module if not already installed</li>
-      <li>Connect to Microsoft Graph with the required scopes</li>
-      <li>Create the service principal using the Windows 365 App ID</li>
-      <li>Verify it was created successfully</li>
+      <li>Ensure you completed the <strong>Prerequisites</strong> section above (PowerShell 7, Graph module, connected to tenant)</li>
+      <li>Create the service principal using the command below</li>
+      <li>Verify it was created</li>
     </ol>`,
     commands: [
-      { label: 'Install Graph Module (if needed)', code: 'Install-Module Microsoft.Graph -Scope CurrentUser -Force' },
-      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Application.ReadWrite.All" -TenantId "YOUR_TENANT_ID"' },
       { label: 'Create Windows 365 Service Principal', code: 'New-MgServicePrincipal -AppId "0af06dc6-e4b5-4f28-818e-e78e62d137a5"' },
       { label: 'Verify', code: 'Get-MgServicePrincipal -Filter "appId eq \'0af06dc6-e4b5-4f28-818e-e78e62d137a5\'" | Format-List DisplayName, AppId, Id' }
     ],
@@ -304,11 +386,10 @@ const STEPS = {
     title: 'Create Azure Virtual Desktop Service Principal',
     desc: `The Azure Virtual Desktop (AVD) service principal is required for RDP session management.`,
     instructions: `<ol>
-      <li>Connect to Microsoft Graph (if not already connected)</li>
+      <li>Ensure you completed the <strong>Prerequisites</strong> section above</li>
       <li>Create the AVD service principal</li>
     </ol>`,
     commands: [
-      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Application.ReadWrite.All" -TenantId "YOUR_TENANT_ID"' },
       { label: 'Create AVD Service Principal', code: 'New-MgServicePrincipal -AppId "9cdead84-a844-4324-93f2-b2e6bb768d07"' },
       { label: 'Verify', code: 'Get-MgServicePrincipal -Filter "appId eq \'9cdead84-a844-4324-93f2-b2e6bb768d07\'" | Format-List DisplayName, AppId, Id' }
     ],
@@ -319,11 +400,10 @@ const STEPS = {
     title: 'Create Azure Virtual Desktop Client Service Principal',
     desc: `This is an optional service principal that may be needed if you experience connection issues. Only create it if you are having problems.`,
     instructions: `<ol>
-      <li>Connect to Microsoft Graph</li>
+      <li>Ensure you completed the <strong>Prerequisites</strong> section above</li>
       <li>Create the AVD Client service principal</li>
     </ol>`,
     commands: [
-      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Application.ReadWrite.All" -TenantId "YOUR_TENANT_ID"' },
       { label: 'Create AVD Client SP', code: 'New-MgServicePrincipal -AppId "a85cf173-4192-42f8-81fa-777a763e6e2c"' },
       { label: 'Verify', code: 'Get-MgServicePrincipal -Filter "appId eq \'a85cf173-4192-42f8-81fa-777a763e6e2c\'" | Format-List DisplayName, AppId, Id' }
     ],
@@ -334,11 +414,10 @@ const STEPS = {
     title: 'Create Azure Virtual Desktop ARM Provider Service Principal',
     desc: `The AVD ARM provider service principal is required for Azure Resource Manager integration with AVD.`,
     instructions: `<ol>
-      <li>Connect to Microsoft Graph</li>
+      <li>Ensure you completed the <strong>Prerequisites</strong> section above</li>
       <li>Create the ARM provider service principal</li>
     </ol>`,
     commands: [
-      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Application.ReadWrite.All" -TenantId "YOUR_TENANT_ID"' },
       { label: 'Create AVD ARM Provider SP', code: 'New-MgServicePrincipal -AppId "50e95039-b200-4007-bc97-8d5790743a63"' },
       { label: 'Verify', code: 'Get-MgServicePrincipal -Filter "appId eq \'50e95039-b200-4007-bc97-8d5790743a63\'" | Format-List DisplayName, AppId, Id' }
     ],
@@ -349,11 +428,10 @@ const STEPS = {
     title: 'Create Microsoft Remote Desktop Service Principal',
     desc: `The Microsoft Remote Desktop service principal is required for Entra ID authentication on RDP connections. This is also a prerequisite for enabling RDP protocol and suppressing consent prompts.`,
     instructions: `<ol>
-      <li>Connect to Microsoft Graph</li>
+      <li>Ensure you completed the <strong>Prerequisites</strong> section above</li>
       <li>Create the Microsoft Remote Desktop service principal</li>
     </ol>`,
     commands: [
-      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Application.ReadWrite.All" -TenantId "YOUR_TENANT_ID"' },
       { label: 'Create Microsoft Remote Desktop SP', code: 'New-MgServicePrincipal -AppId "a4a365df-50f1-4397-bc59-1a1564b8bb9c"' },
       { label: 'Verify', code: 'Get-MgServicePrincipal -Filter "appId eq \'a4a365df-50f1-4397-bc59-1a1564b8bb9c\'" | Format-List DisplayName, AppId, Id' }
     ],
@@ -364,13 +442,12 @@ const STEPS = {
     title: 'Enable RDP Protocol on Microsoft Remote Desktop SP',
     desc: `Microsoft Entra ID authentication for RDP must be enabled on the Microsoft Remote Desktop service principal. This sets <code>isRemoteDesktopProtocolEnabled = true</code>.`,
     instructions: `<ol>
+      <li>Ensure you completed the <strong>Prerequisites</strong> section above</li>
       <li>First ensure the Microsoft Remote Desktop service principal exists (App ID: <code>a4a365df-50f1-4397-bc59-1a1564b8bb9c</code>)</li>
-      <li>Connect to Microsoft Graph with the required scopes</li>
       <li>Get the service principal's Object ID</li>
       <li>Enable the RDP protocol on its security configuration</li>
     </ol>`,
     commands: [
-      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Application.Read.All","Application-RemoteDesktopConfig.ReadWrite.All" -TenantId "YOUR_TENANT_ID"' },
       { label: 'Get Microsoft Remote Desktop SP ID', code: '$msrdSp = Get-MgServicePrincipal -Filter "appId eq \'a4a365df-50f1-4397-bc59-1a1564b8bb9c\'"\n$msrdSp.Id' },
       { label: 'Enable RDP Protocol', code: '$params = @{\n  "@odata.type" = "#microsoft.graph.remoteDesktopSecurityConfiguration"\n  isRemoteDesktopProtocolEnabled = $true\n}\nUpdate-MgServicePrincipalRemoteDesktopSecurityConfiguration -ServicePrincipalId $msrdSp.Id -BodyParameter $params' },
       { label: 'Verify', code: 'Get-MgServicePrincipalRemoteDesktopSecurityConfiguration -ServicePrincipalId $msrdSp.Id | Format-List' }
@@ -382,13 +459,13 @@ const STEPS = {
     title: 'Suppress RDP Consent Prompt (Configure targetDeviceGroups)',
     desc: `To prevent users from seeing a consent dialog when connecting to Cloud PCs, you need to create a dynamic device group and add it as a target device group on the Microsoft Remote Desktop service principal.`,
     instructions: `<ol>
+      <li>Ensure you completed the <strong>Prerequisites</strong> section above</li>
       <li>Create a dynamic device group in Entra ID with the membership rule: <code>(device.enrollmentProfileName -startsWith "CPCPool_")</code></li>
       <li>Get the group's Object ID</li>
       <li>Add it as a targetDeviceGroup on the Microsoft Remote Desktop SP</li>
     </ol>
     <p><strong>Important:</strong> This requires Microsoft Entra ID P1 licensing for dynamic groups.</p>`,
     commands: [
-      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Application.Read.All","Application-RemoteDesktopConfig.ReadWrite.All","Group.ReadWrite.All" -TenantId "YOUR_TENANT_ID"' },
       { label: 'Create Dynamic Device Group', code: '$groupParams = @{\n  DisplayName = "CUA Cloud PC Devices"\n  Description = "Dynamic group for CUA Cloud PC pool devices"\n  GroupTypes = @("DynamicMembership")\n  SecurityEnabled = $true\n  MailEnabled = $false\n  MailNickname = "CUACloudPCDevices"\n  MembershipRule = \'(device.enrollmentProfileName -startsWith "CPCPool_")\'\n  MembershipRuleProcessingState = "On"\n}\n$group = New-MgGroup -BodyParameter $groupParams\n$group.Id' },
       { label: 'Get MSRD SP Object ID', code: '$msrdSp = Get-MgServicePrincipal -Filter "appId eq \'a4a365df-50f1-4397-bc59-1a1564b8bb9c\'"\n$msrdSp.Id' },
       { label: 'Add targetDeviceGroup', code: '$tdgParams = @{\n  id = $group.Id\n  displayName = "CUA Cloud PC Devices"\n}\nNew-MgServicePrincipalRemoteDesktopSecurityConfigurationTargetDeviceGroup -ServicePrincipalId $msrdSp.Id -BodyParameter $tdgParams' },
@@ -408,7 +485,6 @@ const STEPS = {
       <li>Save the configuration</li>
     </ol>`,
     commands: [
-      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "DeviceManagementConfiguration.Read.All" -TenantId "YOUR_TENANT_ID"' },
       { label: 'Check Current Enrollment Restrictions', code: 'Get-MgDeviceManagementDeviceEnrollmentConfiguration | Format-List DisplayName, DeviceEnrollmentConfigurationType' }
     ],
     docUrl: 'https://learn.microsoft.com/en-us/windows-365/enterprise/requirements#microsoft-entra-id-and-intune-requirements',
@@ -425,7 +501,6 @@ const STEPS = {
       <li>Assign the license to relevant users</li>
     </ol>`,
     commands: [
-      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Directory.Read.All" -TenantId "YOUR_TENANT_ID"' },
       { label: 'Check Current SKUs', code: 'Get-MgSubscribedSku | Where-Object { $_.CapabilityStatus -eq "Enabled" } | Format-Table SkuPartNumber, ConsumedUnits, @{N="Enabled";E={$_.PrepaidUnits.Enabled}}' }
     ],
     docUrl: 'https://learn.microsoft.com/en-us/windows-365/enterprise/requirements#licensing-requirements',
@@ -442,7 +517,6 @@ const STEPS = {
       <li>Search for and select the user, then click <strong>Add</strong></li>
     </ol>`,
     commands: [
-      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "RoleManagement.ReadWrite.Directory" -TenantId "YOUR_TENANT_ID"' },
       { label: 'Assign Intune Administrator Role', code: '# Intune Administrator role template ID\n$roleId = "3a2c62db-5318-420d-8d74-23affee5d9d5"\n$userId = (Get-MgUser -Filter "userPrincipalName eq \'admin@yourdomain.com\'").Id\n\n$params = @{\n  "@odata.type" = "#microsoft.graph.unifiedRoleAssignment"\n  principalId = $userId\n  roleDefinitionId = $roleId\n  directoryScopeId = "/"\n}\nNew-MgRoleManagementDirectoryRoleAssignment -BodyParameter $params' },
       { label: 'Check Current Role Assignments', code: 'Get-MgRoleManagementDirectoryRoleAssignment -Filter "principalId eq \'YOUR_USER_ID\'" -ExpandProperty roleDefinition | Select-Object -ExpandProperty RoleDefinition | Format-List DisplayName' }
     ],
@@ -459,7 +533,6 @@ const STEPS = {
       <li>Wait a few minutes for the dynamic membership to process</li>
     </ol>`,
     commands: [
-      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Group.ReadWrite.All" -TenantId "YOUR_TENANT_ID"' },
       { label: 'Create Dynamic Group', code: '$groupParams = @{\n  DisplayName = "CUA Cloud PC Devices"\n  Description = "Dynamic group for CUA Cloud PC pool devices"\n  GroupTypes = @("DynamicMembership")\n  SecurityEnabled = $true\n  MailEnabled = $false\n  MailNickname = "CUACloudPCDevices"\n  MembershipRule = \'(device.enrollmentProfileName -startsWith "CPCPool_")\'\n  MembershipRuleProcessingState = "On"\n}\nNew-MgGroup -BodyParameter $groupParams' },
       { label: 'Verify Group Created', code: 'Get-MgGroup -Filter "displayName eq \'CUA Cloud PC Devices\'" | Format-List DisplayName, Id, MembershipRule, MembershipRuleProcessingState' }
     ],
