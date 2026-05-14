@@ -323,6 +323,7 @@ const STEPS = {
       <li>Create the AVD Client service principal</li>
     </ol>`,
     commands: [
+      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Application.ReadWrite.All"' },
       { label: 'Create AVD Client SP', code: 'New-MgServicePrincipal -AppId "a85cf173-4192-42f8-81fa-777a763e6e2c"' },
       { label: 'Verify', code: 'Get-MgServicePrincipal -Filter "appId eq \'a85cf173-4192-42f8-81fa-777a763e6e2c\'" | Format-List DisplayName, AppId, Id' }
     ],
@@ -337,6 +338,7 @@ const STEPS = {
       <li>Create the ARM provider service principal</li>
     </ol>`,
     commands: [
+      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Application.ReadWrite.All"' },
       { label: 'Create AVD ARM Provider SP', code: 'New-MgServicePrincipal -AppId "50e95039-b200-4007-bc97-8d5790743a63"' },
       { label: 'Verify', code: 'Get-MgServicePrincipal -Filter "appId eq \'50e95039-b200-4007-bc97-8d5790743a63\'" | Format-List DisplayName, AppId, Id' }
     ],
@@ -351,6 +353,7 @@ const STEPS = {
       <li>Create the Microsoft Remote Desktop service principal</li>
     </ol>`,
     commands: [
+      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Application.ReadWrite.All"' },
       { label: 'Create Microsoft Remote Desktop SP', code: 'New-MgServicePrincipal -AppId "a4a365df-50f1-4397-bc59-1a1564b8bb9c"' },
       { label: 'Verify', code: 'Get-MgServicePrincipal -Filter "appId eq \'a4a365df-50f1-4397-bc59-1a1564b8bb9c\'" | Format-List DisplayName, AppId, Id' }
     ],
@@ -405,7 +408,8 @@ const STEPS = {
       <li>Save the configuration</li>
     </ol>`,
     commands: [
-      { label: 'Check Current Enrollment Restrictions (PowerShell)', code: 'Connect-MgGraph -Scopes "DeviceManagementConfiguration.Read.All"\nGet-MgDeviceManagementDeviceEnrollmentConfiguration | Format-List DisplayName, DeviceEnrollmentConfigurationType' }
+      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "DeviceManagementConfiguration.Read.All"' },
+      { label: 'Check Current Enrollment Restrictions', code: 'Get-MgDeviceManagementDeviceEnrollmentConfiguration | Format-List DisplayName, DeviceEnrollmentConfigurationType' }
     ],
     docUrl: 'https://learn.microsoft.com/en-us/windows-365/enterprise/requirements#microsoft-entra-id-and-intune-requirements',
     portalUrl: 'https://intune.microsoft.com/#view/Microsoft_Intune_DeviceSettings/DevicesMenu/~/enrollment'
@@ -421,7 +425,8 @@ const STEPS = {
       <li>Assign the license to relevant users</li>
     </ol>`,
     commands: [
-      { label: 'Check Current SKUs', code: 'Connect-MgGraph -Scopes "Directory.Read.All"\nGet-MgSubscribedSku | Where-Object { $_.CapabilityStatus -eq "Enabled" } | Format-Table SkuPartNumber, ConsumedUnits, @{N="Enabled";E={$_.PrepaidUnits.Enabled}}' }
+      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Directory.Read.All"' },
+      { label: 'Check Current SKUs', code: 'Get-MgSubscribedSku | Where-Object { $_.CapabilityStatus -eq "Enabled" } | Format-Table SkuPartNumber, ConsumedUnits, @{N="Enabled";E={$_.PrepaidUnits.Enabled}}' }
     ],
     docUrl: 'https://learn.microsoft.com/en-us/windows-365/enterprise/requirements#licensing-requirements',
     portalUrl: 'https://admin.microsoft.com/Adminportal/Home#/licenses'
@@ -437,7 +442,8 @@ const STEPS = {
       <li>Search for and select the user, then click <strong>Add</strong></li>
     </ol>`,
     commands: [
-      { label: 'Assign Intune Administrator Role via PowerShell', code: 'Connect-MgGraph -Scopes "RoleManagement.ReadWrite.Directory"\n\n# Intune Administrator role template ID\n$roleId = "3a2c62db-5318-420d-8d74-23affee5d9d5"\n$userId = (Get-MgUser -Filter "userPrincipalName eq \'admin@yourdomain.com\'").Id\n\n$params = @{\n  "@odata.type" = "#microsoft.graph.unifiedRoleAssignment"\n  principalId = $userId\n  roleDefinitionId = $roleId\n  directoryScopeId = "/"\n}\nNew-MgRoleManagementDirectoryRoleAssignment -BodyParameter $params' },
+      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "RoleManagement.ReadWrite.Directory"' },
+      { label: 'Assign Intune Administrator Role', code: '# Intune Administrator role template ID\n$roleId = "3a2c62db-5318-420d-8d74-23affee5d9d5"\n$userId = (Get-MgUser -Filter "userPrincipalName eq \'admin@yourdomain.com\'").Id\n\n$params = @{\n  "@odata.type" = "#microsoft.graph.unifiedRoleAssignment"\n  principalId = $userId\n  roleDefinitionId = $roleId\n  directoryScopeId = "/"\n}\nNew-MgRoleManagementDirectoryRoleAssignment -BodyParameter $params' },
       { label: 'Check Current Role Assignments', code: 'Get-MgRoleManagementDirectoryRoleAssignment -Filter "principalId eq \'YOUR_USER_ID\'" -ExpandProperty roleDefinition | Select-Object -ExpandProperty RoleDefinition | Format-List DisplayName' }
     ],
     docUrl: 'https://learn.microsoft.com/en-us/windows-365/enterprise/requirements#role-and-identity-requirements',
