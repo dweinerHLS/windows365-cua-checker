@@ -274,8 +274,7 @@
           <li><strong>Install PowerShell 7+</strong> — Windows PowerShell 5.1 (built-in) does NOT support the Microsoft Graph module reliably. Download PowerShell 7 from <a href="https://aka.ms/install-powershell" target="_blank">aka.ms/install-powershell</a> or run:<br>
           <code>winget install --id Microsoft.PowerShell --source winget</code></li>
           <li><strong>Set Execution Policy</strong> — Allow running scripts in your session</li>
-          <li><strong>Install NuGet Package Provider</strong> — Required by Install-Module</li>
-          <li><strong>Install Microsoft.Graph Module</strong> — The Graph PowerShell SDK</li>
+          <li><strong>Install Microsoft.Graph Module</strong> — The Graph PowerShell SDK (handles NuGet automatically)</li>
           <li><strong>Disconnect any existing session</strong> — Ensures you log in fresh to the correct tenant</li>
           <li><strong>Connect to Microsoft Graph</strong> — Authenticates to your target tenant (a browser sign-in window will open)</li>
         </ol>
@@ -291,7 +290,7 @@
 
       <div class="cmd-block">
         <div class="cmd-label">
-          <span>Step 2 — Set Execution Policy (run in PowerShell 7 as Admin)</span>
+          <span>Step 2 — Set Execution Policy (run in PowerShell 7)</span>
           <button class="copy-btn" onclick="copyCmd(this)">📋 Copy</button>
         </div>
         <div class="cmd-code">Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force</div>
@@ -299,23 +298,15 @@
 
       <div class="cmd-block">
         <div class="cmd-label">
-          <span>Step 3 — Install NuGet Provider</span>
+          <span>Step 3 — Install Microsoft.Graph Module</span>
           <button class="copy-btn" onclick="copyCmd(this)">📋 Copy</button>
         </div>
-        <div class="cmd-code">Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Scope CurrentUser</div>
+        <div class="cmd-code">Install-Module Microsoft.Graph -Scope CurrentUser -Repository PSGallery -Force -AllowClobber</div>
       </div>
 
       <div class="cmd-block">
         <div class="cmd-label">
-          <span>Step 4 — Install Microsoft.Graph Module</span>
-          <button class="copy-btn" onclick="copyCmd(this)">📋 Copy</button>
-        </div>
-        <div class="cmd-code">Install-Module Microsoft.Graph -Scope CurrentUser -Repository PSGallery -Force</div>
-      </div>
-
-      <div class="cmd-block">
-        <div class="cmd-label">
-          <span>Step 5 — Verify Module Installed</span>
+          <span>Step 4 — Verify Module Installed</span>
           <button class="copy-btn" onclick="copyCmd(this)">📋 Copy</button>
         </div>
         <div class="cmd-code">Get-InstalledModule Microsoft.Graph | Format-List Name, Version</div>
@@ -323,7 +314,7 @@
 
       <div class="cmd-block">
         <div class="cmd-label">
-          <span>Step 6 — Disconnect Existing Session &amp; Connect to Target Tenant</span>
+          <span>Step 5 — Disconnect Existing Session &amp; Connect to Target Tenant</span>
           <button class="copy-btn" onclick="copyCmd(this)">📋 Copy</button>
         </div>
         <div class="cmd-code">Disconnect-MgGraph -ErrorAction SilentlyContinue
@@ -332,7 +323,7 @@ Connect-MgGraph -TenantId "YOUR_TENANT_ID" -Scopes "Application.ReadWrite.All","
 
       <div class="cmd-block">
         <div class="cmd-label">
-          <span>Step 7 — Verify Connection</span>
+          <span>Step 6 — Verify Connection</span>
           <button class="copy-btn" onclick="copyCmd(this)">📋 Copy</button>
         </div>
         <div class="cmd-code">Get-MgContext | Format-List Account, TenantId, Scopes</div>
