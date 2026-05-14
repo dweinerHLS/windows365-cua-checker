@@ -1173,6 +1173,33 @@ const PP_CHECKS = [
         return { status: 'warn', msg: `Could not check billing: ${e.message}. Verify in PPAC → Billing → Billing policies.` };
       }
     }
+  },
+  {
+    id: 'pp-dataverse',
+    name: 'Dataverse Environment Provisioned',
+    scope: 'servicePrincipals · Common Data Service',
+    docUrl: 'https://learn.microsoft.com/en-us/power-platform/admin/create-environment',
+    actionUrl: 'https://admin.powerplatform.microsoft.com/environments',
+    actionText: '⚡ Manage Environments',
+    run: async () => {
+      try {
+        // Check for Common Data Service / Dataverse service principal (AppId: 00000007-0000-0000-c000-000000000000)
+        const cds = await graphGet("/servicePrincipals?$filter=appId eq '00000007-0000-0000-c000-000000000000'&$select=id,displayName,accountEnabled");
+        if (cds.value?.length) {
+          const sp = cds.value[0];
+          if (sp.accountEnabled === false)
+            return { status: 'fail', msg: `Dataverse service principal found (${sp.displayName}) but it is disabled. Enable it in Entra ID → Enterprise Apps.` };
+          return { status: 'pass', msg: `Dataverse service principal active: ${sp.displayName}` };
+        }
+        // Fallback: check for PowerApps Runtime Service which indicates Dataverse usage
+        const pa = await graphGet("/servicePrincipals?$filter=startswith(displayName,'PowerApps Runtime Service') or startswith(displayName,'Dataverse')&$select=id,displayName&$top=5");
+        if (pa.value?.length)
+          return { status: 'pass', msg: `Dataverse-related service found: ${pa.value.map(s => s.displayName).join(', ')}` };
+        return { status: 'fail', msg: 'Dataverse (Common Data Service) service principal not found. A Power Platform environment with Dataverse is required for Copilot Studio. Create one in PPAC → Environments.' };
+      } catch (e) {
+        return { status: 'warn', msg: `Could not check Dataverse: ${e.message}` };
+      }
+    }
   }
 ];
 
