@@ -293,7 +293,7 @@ const STEPS = {
     </ol>`,
     commands: [
       { label: 'Install Graph Module (if needed)', code: 'Install-Module Microsoft.Graph -Scope CurrentUser -Force' },
-      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Application.ReadWrite.All"' },
+      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Application.ReadWrite.All" -TenantId "YOUR_TENANT_ID"' },
       { label: 'Create Windows 365 Service Principal', code: 'New-MgServicePrincipal -AppId "0af06dc6-e4b5-4f28-818e-e78e62d137a5"' },
       { label: 'Verify', code: 'Get-MgServicePrincipal -Filter "appId eq \'0af06dc6-e4b5-4f28-818e-e78e62d137a5\'" | Format-List DisplayName, AppId, Id' }
     ],
@@ -308,7 +308,7 @@ const STEPS = {
       <li>Create the AVD service principal</li>
     </ol>`,
     commands: [
-      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Application.ReadWrite.All"' },
+      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Application.ReadWrite.All" -TenantId "YOUR_TENANT_ID"' },
       { label: 'Create AVD Service Principal', code: 'New-MgServicePrincipal -AppId "9cdead84-a844-4324-93f2-b2e6bb768d07"' },
       { label: 'Verify', code: 'Get-MgServicePrincipal -Filter "appId eq \'9cdead84-a844-4324-93f2-b2e6bb768d07\'" | Format-List DisplayName, AppId, Id' }
     ],
@@ -323,7 +323,7 @@ const STEPS = {
       <li>Create the AVD Client service principal</li>
     </ol>`,
     commands: [
-      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Application.ReadWrite.All"' },
+      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Application.ReadWrite.All" -TenantId "YOUR_TENANT_ID"' },
       { label: 'Create AVD Client SP', code: 'New-MgServicePrincipal -AppId "a85cf173-4192-42f8-81fa-777a763e6e2c"' },
       { label: 'Verify', code: 'Get-MgServicePrincipal -Filter "appId eq \'a85cf173-4192-42f8-81fa-777a763e6e2c\'" | Format-List DisplayName, AppId, Id' }
     ],
@@ -338,7 +338,7 @@ const STEPS = {
       <li>Create the ARM provider service principal</li>
     </ol>`,
     commands: [
-      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Application.ReadWrite.All"' },
+      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Application.ReadWrite.All" -TenantId "YOUR_TENANT_ID"' },
       { label: 'Create AVD ARM Provider SP', code: 'New-MgServicePrincipal -AppId "50e95039-b200-4007-bc97-8d5790743a63"' },
       { label: 'Verify', code: 'Get-MgServicePrincipal -Filter "appId eq \'50e95039-b200-4007-bc97-8d5790743a63\'" | Format-List DisplayName, AppId, Id' }
     ],
@@ -353,7 +353,7 @@ const STEPS = {
       <li>Create the Microsoft Remote Desktop service principal</li>
     </ol>`,
     commands: [
-      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Application.ReadWrite.All"' },
+      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Application.ReadWrite.All" -TenantId "YOUR_TENANT_ID"' },
       { label: 'Create Microsoft Remote Desktop SP', code: 'New-MgServicePrincipal -AppId "a4a365df-50f1-4397-bc59-1a1564b8bb9c"' },
       { label: 'Verify', code: 'Get-MgServicePrincipal -Filter "appId eq \'a4a365df-50f1-4397-bc59-1a1564b8bb9c\'" | Format-List DisplayName, AppId, Id' }
     ],
@@ -370,7 +370,7 @@ const STEPS = {
       <li>Enable the RDP protocol on its security configuration</li>
     </ol>`,
     commands: [
-      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Application.Read.All","Application-RemoteDesktopConfig.ReadWrite.All"' },
+      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Application.Read.All","Application-RemoteDesktopConfig.ReadWrite.All" -TenantId "YOUR_TENANT_ID"' },
       { label: 'Get Microsoft Remote Desktop SP ID', code: '$msrdSp = Get-MgServicePrincipal -Filter "appId eq \'a4a365df-50f1-4397-bc59-1a1564b8bb9c\'"\n$msrdSp.Id' },
       { label: 'Enable RDP Protocol', code: '$params = @{\n  "@odata.type" = "#microsoft.graph.remoteDesktopSecurityConfiguration"\n  isRemoteDesktopProtocolEnabled = $true\n}\nUpdate-MgServicePrincipalRemoteDesktopSecurityConfiguration -ServicePrincipalId $msrdSp.Id -BodyParameter $params' },
       { label: 'Verify', code: 'Get-MgServicePrincipalRemoteDesktopSecurityConfiguration -ServicePrincipalId $msrdSp.Id | Format-List' }
@@ -388,7 +388,7 @@ const STEPS = {
     </ol>
     <p><strong>Important:</strong> This requires Microsoft Entra ID P1 licensing for dynamic groups.</p>`,
     commands: [
-      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Application.Read.All","Application-RemoteDesktopConfig.ReadWrite.All","Group.ReadWrite.All"' },
+      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Application.Read.All","Application-RemoteDesktopConfig.ReadWrite.All","Group.ReadWrite.All" -TenantId "YOUR_TENANT_ID"' },
       { label: 'Create Dynamic Device Group', code: '$groupParams = @{\n  DisplayName = "CUA Cloud PC Devices"\n  Description = "Dynamic group for CUA Cloud PC pool devices"\n  GroupTypes = @("DynamicMembership")\n  SecurityEnabled = $true\n  MailEnabled = $false\n  MailNickname = "CUACloudPCDevices"\n  MembershipRule = \'(device.enrollmentProfileName -startsWith "CPCPool_")\'\n  MembershipRuleProcessingState = "On"\n}\n$group = New-MgGroup -BodyParameter $groupParams\n$group.Id' },
       { label: 'Get MSRD SP Object ID', code: '$msrdSp = Get-MgServicePrincipal -Filter "appId eq \'a4a365df-50f1-4397-bc59-1a1564b8bb9c\'"\n$msrdSp.Id' },
       { label: 'Add targetDeviceGroup', code: '$tdgParams = @{\n  id = $group.Id\n  displayName = "CUA Cloud PC Devices"\n}\nNew-MgServicePrincipalRemoteDesktopSecurityConfigurationTargetDeviceGroup -ServicePrincipalId $msrdSp.Id -BodyParameter $tdgParams' },
@@ -408,7 +408,7 @@ const STEPS = {
       <li>Save the configuration</li>
     </ol>`,
     commands: [
-      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "DeviceManagementConfiguration.Read.All"' },
+      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "DeviceManagementConfiguration.Read.All" -TenantId "YOUR_TENANT_ID"' },
       { label: 'Check Current Enrollment Restrictions', code: 'Get-MgDeviceManagementDeviceEnrollmentConfiguration | Format-List DisplayName, DeviceEnrollmentConfigurationType' }
     ],
     docUrl: 'https://learn.microsoft.com/en-us/windows-365/enterprise/requirements#microsoft-entra-id-and-intune-requirements',
@@ -425,7 +425,7 @@ const STEPS = {
       <li>Assign the license to relevant users</li>
     </ol>`,
     commands: [
-      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Directory.Read.All"' },
+      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Directory.Read.All" -TenantId "YOUR_TENANT_ID"' },
       { label: 'Check Current SKUs', code: 'Get-MgSubscribedSku | Where-Object { $_.CapabilityStatus -eq "Enabled" } | Format-Table SkuPartNumber, ConsumedUnits, @{N="Enabled";E={$_.PrepaidUnits.Enabled}}' }
     ],
     docUrl: 'https://learn.microsoft.com/en-us/windows-365/enterprise/requirements#licensing-requirements',
@@ -442,7 +442,7 @@ const STEPS = {
       <li>Search for and select the user, then click <strong>Add</strong></li>
     </ol>`,
     commands: [
-      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "RoleManagement.ReadWrite.Directory"' },
+      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "RoleManagement.ReadWrite.Directory" -TenantId "YOUR_TENANT_ID"' },
       { label: 'Assign Intune Administrator Role', code: '# Intune Administrator role template ID\n$roleId = "3a2c62db-5318-420d-8d74-23affee5d9d5"\n$userId = (Get-MgUser -Filter "userPrincipalName eq \'admin@yourdomain.com\'").Id\n\n$params = @{\n  "@odata.type" = "#microsoft.graph.unifiedRoleAssignment"\n  principalId = $userId\n  roleDefinitionId = $roleId\n  directoryScopeId = "/"\n}\nNew-MgRoleManagementDirectoryRoleAssignment -BodyParameter $params' },
       { label: 'Check Current Role Assignments', code: 'Get-MgRoleManagementDirectoryRoleAssignment -Filter "principalId eq \'YOUR_USER_ID\'" -ExpandProperty roleDefinition | Select-Object -ExpandProperty RoleDefinition | Format-List DisplayName' }
     ],
@@ -459,7 +459,7 @@ const STEPS = {
       <li>Wait a few minutes for the dynamic membership to process</li>
     </ol>`,
     commands: [
-      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Group.ReadWrite.All"' },
+      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Group.ReadWrite.All" -TenantId "YOUR_TENANT_ID"' },
       { label: 'Create Dynamic Group', code: '$groupParams = @{\n  DisplayName = "CUA Cloud PC Devices"\n  Description = "Dynamic group for CUA Cloud PC pool devices"\n  GroupTypes = @("DynamicMembership")\n  SecurityEnabled = $true\n  MailEnabled = $false\n  MailNickname = "CUACloudPCDevices"\n  MembershipRule = \'(device.enrollmentProfileName -startsWith "CPCPool_")\'\n  MembershipRuleProcessingState = "On"\n}\nNew-MgGroup -BodyParameter $groupParams' },
       { label: 'Verify Group Created', code: 'Get-MgGroup -Filter "displayName eq \'CUA Cloud PC Devices\'" | Format-List DisplayName, Id, MembershipRule, MembershipRuleProcessingState' }
     ],
@@ -611,8 +611,18 @@ function copyCmd(btn, cmdId) {
   }
 }
 
+// After rendering, replace YOUR_TENANT_ID placeholder with saved tenant ID
+function fillTenantId() {
+  const tenantId = localStorage.getItem('cua_tenant_id');
+  if (!tenantId) return;
+  document.querySelectorAll('.cmd-code').forEach(el => {
+    el.textContent = el.textContent.replace(/YOUR_TENANT_ID/g, tenantId);
+  });
+}
+
 // Render on page load
 renderSteps();
+fillTenantId();
 </script>
 </body>
 </html>

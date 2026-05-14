@@ -879,6 +879,11 @@ function onSignedIn(account) {
   document.getElementById('user-name-display').textContent  = name;
   document.getElementById('user-tenant-display').textContent = 'Tenant: ' + (account.tenantId || account.username.split('@')[1] || '—');
 
+  // Save tenant ID for deployment page
+  if (account.tenantId) {
+    localStorage.setItem('cua_tenant_id', account.tenantId);
+  }
+
   // Build card scaffolding
   buildCards();
   buildManualChecklist();
