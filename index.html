@@ -1046,8 +1046,8 @@ const INTUNE_CHECKS = [
     docUrl: 'https://learn.microsoft.com/en-us/windows-365/enterprise/requirements#microsoft-entra-id-and-intune-requirements',
     run: async () => {
       try {
-        // Don't select platformRestrictions — it only exists on derived types
-        const resp = await graphGet('/deviceManagement/deviceEnrollmentConfigurations?$select=displayName,deviceEnrollmentConfigurationType');
+        // No $select — derived type properties can't be used in $select on the base type
+        const resp = await graphGet('/deviceManagement/deviceEnrollmentConfigurations');
         const configs = resp.value || [];
         if (!configs.length) return { status: 'warn', msg: 'No enrollment configurations found — Intune may not be licensed or no restrictions set (default allows all).' };
         // Look for platform restriction configs
