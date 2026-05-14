@@ -1046,20 +1046,30 @@ const INTUNE_CHECKS = [
     docUrl: 'https://learn.microsoft.com/en-us/windows-365/enterprise/requirements#microsoft-entra-id-and-intune-requirements',
     run: async () => {
       try {
-        const resp = await graphGet('/deviceManagement/deviceEnrollmentConfigurations?$select=displayName,platformRestrictions,deviceEnrollmentConfigurationType');
+        // Don't select platformRestrictions — it only exists on derived types
+        const resp = await graphGet('/deviceManagement/deviceEnrollmentConfigurations?$select=displayName,deviceEnrollmentConfigurationType');
         const configs = resp.value || [];
-        const defaultRestriction = configs.find(c =>
+        if (!configs.length) return { status: 'warn', msg: 'No enrollment configurations found — Intune may not be licensed or no restrictions set (default allows all).' };
+        // Look for platform restriction configs
+        const restrictions = configs.filter(c =>
+          c.deviceEnrollmentConfigurationType?.includes('platformRestriction') ||
           c.deviceEnrollmentConfigurationType === 'singlePlatformRestriction' ||
-          c.deviceEnrollmentConfigurationType === 'limit' ||
-          c.displayName?.toLowerCase().includes('default') ||
           c.displayName?.toLowerCase().includes('restriction')
         );
-        if (!configs.length) return { status: 'warn', msg: 'No enrollment configurations found — Intune may not be licensed or no restrictions set (default allows all).' };
-        // Check if platformRestrictions exist with Windows allowed
-        const winRestriction = configs.find(c => c.platformRestrictions?.windows?.platformBlocked === false || c.platformRestrictions?.windowsMobile?.platformBlocked === false);
-        if (winRestriction) return { status: 'pass', msg: `Windows (MDM) corporate enrollment is allowed.` };
-        // If no explicit block found, assume default allow
-        return { status: 'pass', msg: 'No Windows MDM block found — enrollment should be allowed. Verify manually in Intune.' };
+        if (restrictions.length) {
+          // Try to read Windows-specific restriction detail
+          try {
+            for (const r of restrictions) {
+              const detail = await graphGet(`/deviceManagement/deviceEnrollmentConfigurations/${r.id}`);
+              if (detail.platformRestriction?.platformBlocked === true && detail.platformType === 'windows') {
+                return { status: 'fail', msg: `Windows (MDM) enrollment is BLOCKED in restriction: ${r.displayName}. Unblock it in Intune.` };
+              }
+            }
+          } catch (detailErr) {
+            // Can't read detail, fall through
+          }
+        }
+        return { status: 'pass', msg: `Intune enrollment configurations found (${configs.length}). No Windows MDM block detected.` };
       } catch (e) {
         if (e.message?.includes('403') || e.message?.toLowerCase().includes('forbidden') || e.message?.toLowerCase().includes('authorization'))
           return { status: 'warn', msg: 'Insufficient permissions to read Intune enrollment config. Check manually in Intune admin center.' };
@@ -1076,10 +1086,35 @@ const INTUNE_CHECKS = [
       try {
         const resp = await graphGet('/subscribedSkus?$select=skuPartNumber,skuId,capabilityStatus,consumedUnits,prepaidUnits');
         const skus = resp.value || [];
-        const p1Patterns = ['AAD_PREMIUM','EMSPREMIUM','M365EDU_A3','M365_E3','M365_E5','SPE_E3','SPE_E5','ENTERPRISEPREMIUM','EMS'];
+        const p1Patterns = [
+          'AAD_PREMIUM',       // Entra ID P1 standalone
+          'AAD_PREMIUM_P2',    // Entra ID P2 standalone
+          'EMSPREMIUM',        // EMS E3/E5
+          'EMS_E3',
+          'EMS_E5',
+          'M365_E3',           // Microsoft 365 E3
+          'M365_E5',           // Microsoft 365 E5
+          'SPE_E3',            // Microsoft 365 E3 (alt SKU name)
+          'SPE_E5',            // Microsoft 365 E5 (alt SKU name)
+          'SPE_F1',            // Microsoft 365 F1/F3
+          'SPE_F3',
+          'M365_F1',
+          'M365_F3',
+          'ENTERPRISEPREMIUM',  // Office 365 E5
+          'ENTERPRISEPACK',     // Office 365 E3 (includes AAD P1 via M365)
+          'M365EDU_A3',        // Education
+          'M365EDU_A5',
+          'M365_BUSINESS_PREMIUM', // M365 Business Premium (includes AAD P1)
+          'M365_G3',           // GCC
+          'M365_G5',
+          'IDENTITY_THREAT_PROTECTION', // Entra ID P2 via Identity Protection
+          'MICROSOFT_365_E3',
+          'MICROSOFT_365_E5'
+        ];
         const found = skus.filter(s => p1Patterns.some(p => s.skuPartNumber?.includes(p)) && s.capabilityStatus === 'Enabled');
         if (found.length) return { status: 'pass', msg: `Found compatible SKU(s): ${found.map(s=>s.skuPartNumber).join(', ')}` };
-        return { status: 'warn', msg: 'No clear Entra ID P1 license found. This is required for dynamic groups. Verify in M365 admin center.' };
+        const allSkus = skus.filter(s => s.capabilityStatus === 'Enabled').map(s => s.skuPartNumber).join(', ');
+        return { status: 'warn', msg: `No Entra ID P1 SKU matched. Tenant SKUs: ${allSkus || 'none'}. Verify in M365 admin center.` };
       } catch (e) {
         return { status: 'warn', msg: `Could not read SKUs: ${e.message}` };
       }
