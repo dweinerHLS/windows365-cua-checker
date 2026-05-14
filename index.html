@@ -666,6 +666,7 @@
         <span id="last-run-label" style="font-size:0.75rem; color:var(--muted);"></span>
         <button class="btn btn-success" onclick="runAllChecks()">▶ Run All Checks</button>
         <button class="btn btn-outline" onclick="exportResults()">📋 Export Results</button>
+        <a href="deployment.html" class="btn btn-outline" style="text-decoration:none">🛠️ Deployment Guide</a>
       </div>
     </div>
 
@@ -1302,11 +1303,13 @@ function toggleManual(id, el) {
    RUN CHECKS
 ───────────────────────────────────────────── */
 let checkResults = {};
+let checkMessages = {};
 
 async function runAllChecks() {
   graphToken = null; // force fresh token
   bapToken = null;
   checkResults = {};
+  checkMessages = {};
   const allChecks = [...SP_CHECKS, ...RDP_CHECKS, ...INTUNE_CHECKS, ...PP_CHECKS];
   const total = allChecks.length;
   let done = 0;
@@ -1326,10 +1329,12 @@ async function runAllChecks() {
       try {
         const result = await chk.run();
         checkResults[chk.id] = result.status;
+        checkMessages[chk.id] = result.msg;
         setCardResult(chk.id, result.status, result.msg);
       } catch (e) {
         checkResults[chk.id] = 'fail';
-        setCardResult(chk.id, 'fail', 'Error: ' + (e.message || String(e)));
+        checkMessages[chk.id] = 'Error: ' + (e.message || String(e));
+        setCardResult(chk.id, 'fail', checkMessages[chk.id]);
       }
       done++;
       setProgress(done, total);
@@ -1344,6 +1349,10 @@ async function runAllChecks() {
   document.getElementById('progress-bar-wrap').style.display = 'none';
   document.getElementById('last-run-label').textContent = 'Last run: ' + new Date().toLocaleTimeString();
   showSummary(checkResults);
+
+  // Save results to localStorage for the Deployment Guide page
+  localStorage.setItem('cua_check_results', JSON.stringify(checkResults));
+  localStorage.setItem('cua_check_messages', JSON.stringify(checkMessages));
 }
 
 function setCardLoading(id) {

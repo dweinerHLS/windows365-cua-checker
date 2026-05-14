@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CUA Deployment Guide – Remediation Steps</title>
+  <style>
+    :root {
+      --bg:        #0f0f1a;
+      --surface:   #1a1a2e;
+      --card:      #16213e;
+      --border:    #0f3460;
+      --accent:    #0078d4;
+      --accent2:   #50c8e8;
+      --text:      #e0e6f0;
+      --muted:     #7a8ba0;
+      --pass:      #3dd68c;
+      --fail:      #f25a5a;
+      --warn:      #ffb84d;
+      --radius:    10px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    header {
+      background: linear-gradient(135deg, #0a0a1a 0%, #0f2744 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .logo-badge {
+      width: 44px; height: 44px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; flex-shrink: 0;
+    }
+
+    .header-title h1 { font-size: 1.25rem; font-weight: 700; color: #fff; line-height: 1.2; }
+    .header-title p { font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
+
+    .btn {
+      padding: 8px 18px; border-radius: 6px; font-size: 0.82rem; font-weight: 600;
+      cursor: pointer; border: none; display: inline-flex; align-items: center; gap: 6px;
+      transition: opacity 0.15s, transform 0.1s; text-decoration: none;
+    }
+    .btn:hover { opacity: 0.88; transform: translateY(-1px); }
+    .btn-outline { background: transparent; color: var(--text); border: 1px solid var(--border); }
+    .btn-primary { background: var(--accent); color: #fff; }
+
+    main { max-width: 900px; margin: 0 auto; padding: 28px 20px 60px; }
+
+    .intro-note {
+      background: rgba(80,200,232,0.08);
+      border: 1px solid rgba(80,200,232,0.25);
+      border-radius: 8px;
+      padding: 14px 18px;
+      font-size: 0.85rem;
+      color: var(--info);
+      line-height: 1.6;
+      margin-bottom: 28px;
+    }
+
+    .no-issues {
+      text-align: center;
+      padding: 60px 20px;
+    }
+    .no-issues h2 { color: var(--pass); margin-bottom: 12px; }
+    .no-issues p { color: var(--muted); }
+
+    .step-section {
+      margin-bottom: 32px;
+    }
+
+    .step-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .step-number {
+      width: 32px; height: 32px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 800; font-size: 0.9rem; color: #fff; flex-shrink: 0;
+    }
+
+    .step-title { font-size: 1.05rem; font-weight: 700; }
+
+    .step-status {
+      margin-left: auto;
+      padding: 3px 10px; border-radius: 20px;
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.04em;
+    }
+    .step-status.fail { background: rgba(242,90,90,0.15); color: var(--fail); }
+    .step-status.warn { background: rgba(255,184,77,0.15); color: var(--warn); }
+
+    .step-body {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+
+    .step-desc {
+      font-size: 0.88rem;
+      color: var(--text);
+      line-height: 1.7;
+      margin-bottom: 16px;
+    }
+
+    .step-desc a {
+      color: var(--accent2);
+      text-decoration: none;
+    }
+    .step-desc a:hover { text-decoration: underline; }
+
+    .step-desc ol, .step-desc ul {
+      padding-left: 20px;
+      margin: 8px 0;
+    }
+
+    .step-desc li {
+      margin-bottom: 6px;
+    }
+
+    .cmd-block {
+      background: #0a0a18;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin: 12px 0;
+      position: relative;
+      overflow-x: auto;
+    }
+
+    .cmd-label {
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .cmd-label .copy-btn {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid var(--border);
+      color: var(--accent2);
+      padding: 2px 10px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .cmd-label .copy-btn:hover { background: rgba(255,255,255,0.15); }
+
+    .cmd-code {
+      font-family: 'Cascadia Code', 'Consolas', 'Courier New', monospace;
+      font-size: 0.82rem;
+      color: var(--accent2);
+      line-height: 1.6;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .step-links {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+
+    .step-link {
+      font-size: 0.8rem;
+      color: var(--accent2);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .step-link:hover { text-decoration: underline; }
+
+    .result-msg {
+      background: rgba(242,90,90,0.08);
+      border-left: 3px solid var(--fail);
+      padding: 10px 14px;
+      border-radius: 0 6px 6px 0;
+      font-size: 0.82rem;
+      color: #f28080;
+      margin-bottom: 14px;
+      font-family: 'Cascadia Code', 'Consolas', monospace;
+    }
+    .result-msg.warn-msg {
+      background: rgba(255,184,77,0.08);
+      border-left-color: var(--warn);
+      color: #f0c060;
+    }
+
+    footer {
+      text-align: center;
+      padding: 24px;
+      border-top: 1px solid var(--border);
+      font-size: 0.76rem;
+      color: var(--muted);
+    }
+    footer a { color: var(--accent2); text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    @media (max-width: 600px) {
+      header { padding: 14px 16px; }
+      .step-body { padding: 14px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <div class="logo-badge">🛠️</div>
+    <div class="header-title">
+      <h1>CUA Deployment Guide</h1>
+      <p>Step-by-step remediation for failed &amp; warning checks</p>
+    </div>
+  </div>
+  <div>
+    <a class="btn btn-outline" href="index.html">← Back to Checker</a>
+  </div>
+</header>
+
+<main>
+  <div class="intro-note">
+    ℹ️ This guide shows remediation steps <strong>only for items that failed or have warnings</strong> from your last check run.
+    Run all checks on the <a href="index.html">main page</a> first, then return here for step-by-step fix instructions.
+    All PowerShell commands should be run in an <strong>elevated PowerShell 7+ terminal</strong> connected to Microsoft Graph.
+  </div>
+
+  <div id="steps-container"></div>
+
+  <div id="no-issues" class="no-issues" style="display:none">
+    <h2>🎉 All Checks Passed!</h2>
+    <p>No remediation steps needed. Your tenant is ready for CUA.</p>
+    <a class="btn btn-primary" href="index.html" style="margin-top:20px; display:inline-flex;">← Back to Checker</a>
+  </div>
+</main>
+
+<footer>
+  <p>
+    Windows 365 for Agents – CUA Deployment Guide &nbsp;·&nbsp;
+    <a href="https://learn.microsoft.com/en-us/microsoft-copilot-studio/use-cloud-pc-pool" target="_blank">Microsoft Learn Docs</a> &nbsp;·&nbsp;
+    <a href="index.html">Back to Checker</a>
+  </p>
+</footer>
+
+<script>
+/* ─────────────────────────────────────────────
+   REMEDIATION STEPS DATABASE
+───────────────────────────────────────────── */
+const STEPS = {
+  'sp-w365': {
+    title: 'Create Windows 365 Service Principal',
+    desc: `The Windows 365 service principal is required for Cloud PC provisioning. It must be registered in your Entra ID tenant.`,
+    instructions: `<ol>
+      <li>Open an elevated <strong>PowerShell 7+</strong> terminal</li>
+      <li>Install the Microsoft Graph PowerShell module if not already installed</li>
+      <li>Connect to Microsoft Graph with the required scopes</li>
+      <li>Create the service principal using the Windows 365 App ID</li>
+      <li>Verify it was created successfully</li>
+    </ol>`,
+    commands: [
+      { label: 'Install Graph Module (if needed)', code: 'Install-Module Microsoft.Graph -Scope CurrentUser -Force' },
+      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Application.ReadWrite.All"' },
+      { label: 'Create Windows 365 Service Principal', code: 'New-MgServicePrincipal -AppId "0af06dc6-e4b5-4f28-818e-e78e62d137a5"' },
+      { label: 'Verify', code: 'Get-MgServicePrincipal -Filter "appId eq \'0af06dc6-e4b5-4f28-818e-e78e62d137a5\'" | Format-List DisplayName, AppId, Id' }
+    ],
+    docUrl: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/use-cloud-pc-pool#windows-365-cloud-pc-and-azure-virtual-desktop-service-principal'
+  },
+
+  'sp-avd': {
+    title: 'Create Azure Virtual Desktop Service Principal',
+    desc: `The Azure Virtual Desktop (AVD) service principal is required for RDP session management.`,
+    instructions: `<ol>
+      <li>Connect to Microsoft Graph (if not already connected)</li>
+      <li>Create the AVD service principal</li>
+    </ol>`,
+    commands: [
+      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Application.ReadWrite.All"' },
+      { label: 'Create AVD Service Principal', code: 'New-MgServicePrincipal -AppId "9cdead84-a844-4324-93f2-b2e6bb768d07"' },
+      { label: 'Verify', code: 'Get-MgServicePrincipal -Filter "appId eq \'9cdead84-a844-4324-93f2-b2e6bb768d07\'" | Format-List DisplayName, AppId, Id' }
+    ],
+    docUrl: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/use-cloud-pc-pool#windows-365-cloud-pc-and-azure-virtual-desktop-service-principal'
+  },
+
+  'sp-avd-client': {
+    title: 'Create Azure Virtual Desktop Client Service Principal',
+    desc: `This is an optional service principal that may be needed if you experience connection issues. Only create it if you are having problems.`,
+    instructions: `<ol>
+      <li>Connect to Microsoft Graph</li>
+      <li>Create the AVD Client service principal</li>
+    </ol>`,
+    commands: [
+      { label: 'Create AVD Client SP', code: 'New-MgServicePrincipal -AppId "a85cf173-4192-42f8-81fa-777a763e6e2c"' },
+      { label: 'Verify', code: 'Get-MgServicePrincipal -Filter "appId eq \'a85cf173-4192-42f8-81fa-777a763e6e2c\'" | Format-List DisplayName, AppId, Id' }
+    ],
+    docUrl: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/use-cloud-pc-pool#windows-365-cloud-pc-and-azure-virtual-desktop-service-principal'
+  },
+
+  'sp-avd-arm': {
+    title: 'Create Azure Virtual Desktop ARM Provider Service Principal',
+    desc: `The AVD ARM provider service principal is required for Azure Resource Manager integration with AVD.`,
+    instructions: `<ol>
+      <li>Connect to Microsoft Graph</li>
+      <li>Create the ARM provider service principal</li>
+    </ol>`,
+    commands: [
+      { label: 'Create AVD ARM Provider SP', code: 'New-MgServicePrincipal -AppId "50e95039-b200-4007-bc97-8d5790743a63"' },
+      { label: 'Verify', code: 'Get-MgServicePrincipal -Filter "appId eq \'50e95039-b200-4007-bc97-8d5790743a63\'" | Format-List DisplayName, AppId, Id' }
+    ],
+    docUrl: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/use-cloud-pc-pool#windows-365-cloud-pc-and-azure-virtual-desktop-service-principal'
+  },
+
+  'sp-msrd': {
+    title: 'Create Microsoft Remote Desktop Service Principal',
+    desc: `The Microsoft Remote Desktop service principal is required for Entra ID authentication on RDP connections. This is also a prerequisite for enabling RDP protocol and suppressing consent prompts.`,
+    instructions: `<ol>
+      <li>Connect to Microsoft Graph</li>
+      <li>Create the Microsoft Remote Desktop service principal</li>
+    </ol>`,
+    commands: [
+      { label: 'Create Microsoft Remote Desktop SP', code: 'New-MgServicePrincipal -AppId "a4a365df-50f1-4397-bc59-1a1564b8bb9c"' },
+      { label: 'Verify', code: 'Get-MgServicePrincipal -Filter "appId eq \'a4a365df-50f1-4397-bc59-1a1564b8bb9c\'" | Format-List DisplayName, AppId, Id' }
+    ],
+    docUrl: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/use-cloud-pc-pool#steps-to-enable-microsoft-entra-authentication-for-rdp'
+  },
+
+  'rdp-enabled': {
+    title: 'Enable RDP Protocol on Microsoft Remote Desktop SP',
+    desc: `Microsoft Entra ID authentication for RDP must be enabled on the Microsoft Remote Desktop service principal. This sets <code>isRemoteDesktopProtocolEnabled = true</code>.`,
+    instructions: `<ol>
+      <li>First ensure the Microsoft Remote Desktop service principal exists (App ID: <code>a4a365df-50f1-4397-bc59-1a1564b8bb9c</code>)</li>
+      <li>Connect to Microsoft Graph with the required scopes</li>
+      <li>Get the service principal's Object ID</li>
+      <li>Enable the RDP protocol on its security configuration</li>
+    </ol>`,
+    commands: [
+      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Application.Read.All","Application-RemoteDesktopConfig.ReadWrite.All"' },
+      { label: 'Get Microsoft Remote Desktop SP ID', code: '$msrdSp = Get-MgServicePrincipal -Filter "appId eq \'a4a365df-50f1-4397-bc59-1a1564b8bb9c\'"\n$msrdSp.Id' },
+      { label: 'Enable RDP Protocol', code: '$params = @{\n  "@odata.type" = "#microsoft.graph.remoteDesktopSecurityConfiguration"\n  isRemoteDesktopProtocolEnabled = $true\n}\nUpdate-MgServicePrincipalRemoteDesktopSecurityConfiguration -ServicePrincipalId $msrdSp.Id -BodyParameter $params' },
+      { label: 'Verify', code: 'Get-MgServicePrincipalRemoteDesktopSecurityConfiguration -ServicePrincipalId $msrdSp.Id | Format-List' }
+    ],
+    docUrl: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/use-cloud-pc-pool#steps-to-enable-microsoft-entra-authentication-for-rdp'
+  },
+
+  'rdp-consent': {
+    title: 'Suppress RDP Consent Prompt (Configure targetDeviceGroups)',
+    desc: `To prevent users from seeing a consent dialog when connecting to Cloud PCs, you need to create a dynamic device group and add it as a target device group on the Microsoft Remote Desktop service principal.`,
+    instructions: `<ol>
+      <li>Create a dynamic device group in Entra ID with the membership rule: <code>(device.enrollmentProfileName -startsWith "CPCPool_")</code></li>
+      <li>Get the group's Object ID</li>
+      <li>Add it as a targetDeviceGroup on the Microsoft Remote Desktop SP</li>
+    </ol>
+    <p><strong>Important:</strong> This requires Microsoft Entra ID P1 licensing for dynamic groups.</p>`,
+    commands: [
+      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Application.Read.All","Application-RemoteDesktopConfig.ReadWrite.All","Group.ReadWrite.All"' },
+      { label: 'Create Dynamic Device Group', code: '$groupParams = @{\n  DisplayName = "CUA Cloud PC Devices"\n  Description = "Dynamic group for CUA Cloud PC pool devices"\n  GroupTypes = @("DynamicMembership")\n  SecurityEnabled = $true\n  MailEnabled = $false\n  MailNickname = "CUACloudPCDevices"\n  MembershipRule = \'(device.enrollmentProfileName -startsWith "CPCPool_")\'\n  MembershipRuleProcessingState = "On"\n}\n$group = New-MgGroup -BodyParameter $groupParams\n$group.Id' },
+      { label: 'Get MSRD SP Object ID', code: '$msrdSp = Get-MgServicePrincipal -Filter "appId eq \'a4a365df-50f1-4397-bc59-1a1564b8bb9c\'"\n$msrdSp.Id' },
+      { label: 'Add targetDeviceGroup', code: '$tdgParams = @{\n  id = $group.Id\n  displayName = "CUA Cloud PC Devices"\n}\nNew-MgServicePrincipalRemoteDesktopSecurityConfigurationTargetDeviceGroup -ServicePrincipalId $msrdSp.Id -BodyParameter $tdgParams' },
+      { label: 'Verify', code: 'Get-MgServicePrincipalRemoteDesktopSecurityConfigurationTargetDeviceGroup -ServicePrincipalId $msrdSp.Id | Format-List' }
+    ],
+    docUrl: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/use-cloud-pc-pool#steps-to-hide-the-consent-prompt-dialog'
+  },
+
+  'intune-enroll': {
+    title: 'Configure Intune Windows MDM Enrollment',
+    desc: `Windows (MDM) corporate enrollment must be allowed in Intune device enrollment restrictions for Cloud PCs to enroll properly.`,
+    instructions: `<ol>
+      <li>Open the <a href="https://intune.microsoft.com/#view/Microsoft_Intune_DeviceSettings/DevicesMenu/~/enrollment" target="_blank">Intune admin center → Devices → Enrollment</a></li>
+      <li>Click <strong>Device type restrictions</strong></li>
+      <li>Edit the default restriction or the relevant profile</li>
+      <li>Under <strong>Platform settings</strong>, ensure <strong>Windows (MDM)</strong> is set to <strong>Allow</strong> for <strong>Corporate</strong> enrollment</li>
+      <li>Save the configuration</li>
+    </ol>`,
+    commands: [
+      { label: 'Check Current Enrollment Restrictions (PowerShell)', code: 'Connect-MgGraph -Scopes "DeviceManagementConfiguration.Read.All"\nGet-MgDeviceManagementDeviceEnrollmentConfiguration | Format-List DisplayName, DeviceEnrollmentConfigurationType' }
+    ],
+    docUrl: 'https://learn.microsoft.com/en-us/windows-365/enterprise/requirements#microsoft-entra-id-and-intune-requirements',
+    portalUrl: 'https://intune.microsoft.com/#view/Microsoft_Intune_DeviceSettings/DevicesMenu/~/enrollment'
+  },
+
+  'entra-p1': {
+    title: 'Obtain Microsoft Entra ID P1 License',
+    desc: `Microsoft Entra ID P1 (or higher) is required for dynamic group membership, which is needed for the consent prompt suppression and Cloud PC device management.`,
+    instructions: `<ol>
+      <li>Go to the <a href="https://admin.microsoft.com/Adminportal/Home#/licenses" target="_blank">Microsoft 365 admin center → Billing → Licenses</a></li>
+      <li>Ensure you have one of these license plans: <strong>Entra ID P1</strong>, <strong>Entra ID P2</strong>, <strong>EMS E3/E5</strong>, <strong>Microsoft 365 E3/E5</strong></li>
+      <li>If not licensed, purchase Entra ID P1 or an M365 E3/E5 plan</li>
+      <li>Assign the license to relevant users</li>
+    </ol>`,
+    commands: [
+      { label: 'Check Current SKUs', code: 'Connect-MgGraph -Scopes "Directory.Read.All"\nGet-MgSubscribedSku | Where-Object { $_.CapabilityStatus -eq "Enabled" } | Format-Table SkuPartNumber, ConsumedUnits, @{N="Enabled";E={$_.PrepaidUnits.Enabled}}' }
+    ],
+    docUrl: 'https://learn.microsoft.com/en-us/windows-365/enterprise/requirements#licensing-requirements',
+    portalUrl: 'https://admin.microsoft.com/Adminportal/Home#/licenses'
+  },
+
+  'admin-role': {
+    title: 'Assign Required Admin Role',
+    desc: `The user running setup needs one of these admin roles: <strong>Global Administrator</strong>, <strong>Intune Administrator</strong>, <strong>Windows 365 Administrator</strong>, or <strong>Application Administrator</strong>.`,
+    instructions: `<ol>
+      <li>Go to <a href="https://entra.microsoft.com/#view/Microsoft_AAD_IAM/RolesManagementMenuBlade/~/AllRoles" target="_blank">Entra ID admin center → Roles and administrators</a></li>
+      <li>Find the appropriate role (e.g., <strong>Intune Administrator</strong>)</li>
+      <li>Click the role, then <strong>+ Add assignments</strong></li>
+      <li>Search for and select the user, then click <strong>Add</strong></li>
+    </ol>`,
+    commands: [
+      { label: 'Assign Intune Administrator Role via PowerShell', code: 'Connect-MgGraph -Scopes "RoleManagement.ReadWrite.Directory"\n\n# Intune Administrator role template ID\n$roleId = "3a2c62db-5318-420d-8d74-23affee5d9d5"\n$userId = (Get-MgUser -Filter "userPrincipalName eq \'admin@yourdomain.com\'").Id\n\n$params = @{\n  "@odata.type" = "#microsoft.graph.unifiedRoleAssignment"\n  principalId = $userId\n  roleDefinitionId = $roleId\n  directoryScopeId = "/"\n}\nNew-MgRoleManagementDirectoryRoleAssignment -BodyParameter $params' },
+      { label: 'Check Current Role Assignments', code: 'Get-MgRoleManagementDirectoryRoleAssignment -Filter "principalId eq \'YOUR_USER_ID\'" -ExpandProperty roleDefinition | Select-Object -ExpandProperty RoleDefinition | Format-List DisplayName' }
+    ],
+    docUrl: 'https://learn.microsoft.com/en-us/windows-365/enterprise/requirements#role-and-identity-requirements',
+    portalUrl: 'https://entra.microsoft.com/#view/Microsoft_AAD_IAM/RolesManagementMenuBlade/~/AllRoles'
+  },
+
+  'dynamic-groups': {
+    title: 'Create Dynamic Device Group for Cloud PC Devices',
+    desc: `A dynamic device group with the membership rule <code>(device.enrollmentProfileName -startsWith "CPCPool_")</code> is required for consent prompt suppression. This group auto-populates with Cloud PCs created by CUA.`,
+    instructions: `<ol>
+      <li>Ensure you have <strong>Entra ID P1</strong> license (required for dynamic groups)</li>
+      <li>Create the dynamic group via PowerShell or the Entra portal</li>
+      <li>Wait a few minutes for the dynamic membership to process</li>
+    </ol>`,
+    commands: [
+      { label: 'Connect to Graph', code: 'Connect-MgGraph -Scopes "Group.ReadWrite.All"' },
+      { label: 'Create Dynamic Group', code: '$groupParams = @{\n  DisplayName = "CUA Cloud PC Devices"\n  Description = "Dynamic group for CUA Cloud PC pool devices"\n  GroupTypes = @("DynamicMembership")\n  SecurityEnabled = $true\n  MailEnabled = $false\n  MailNickname = "CUACloudPCDevices"\n  MembershipRule = \'(device.enrollmentProfileName -startsWith "CPCPool_")\'\n  MembershipRuleProcessingState = "On"\n}\nNew-MgGroup -BodyParameter $groupParams' },
+      { label: 'Verify Group Created', code: 'Get-MgGroup -Filter "displayName eq \'CUA Cloud PC Devices\'" | Format-List DisplayName, Id, MembershipRule, MembershipRuleProcessingState' }
+    ],
+    docUrl: 'https://learn.microsoft.com/en-us/microsoft-copilot-studio/use-cloud-pc-pool#steps-to-hide-the-consent-prompt-dialog',
+    portalUrl: 'https://entra.microsoft.com/#view/Microsoft_AAD_IAM/GroupsManagementMenuBlade/~/AllGroups'
+  },
+
+  'pp-billing': {
+    title: 'Set Up Pay-As-You-Go Billing in Power Platform',
+    desc: `A pay-as-you-go billing plan linked to an Azure subscription is required for CUA Cloud PC usage. This enables consumption-based billing for Copilot Studio and Windows 365 for Agents.`,
+    instructions: `<ol>
+      <li>Go to <a href="https://admin.powerplatform.microsoft.com/licensing/billingplans" target="_blank">Power Platform admin center → Billing → Billing plans</a></li>
+      <li>Click <strong>+ New billing plan</strong></li>
+      <li>Select your <strong>Azure subscription</strong></li>
+      <li>Choose a <strong>Resource group</strong> (or create a new one)</li>
+      <li>Select the <strong>Power Platform environment</strong> to link</li>
+      <li>Review and confirm the billing plan</li>
+    </ol>
+    <p><strong>Note:</strong> You must have <strong>Owner</strong> or <strong>Contributor</strong> role on the Azure subscription.</p>`,
+    commands: [],
+    docUrl: 'https://learn.microsoft.com/en-us/power-platform/admin/pay-as-you-go-set-up?tabs=new',
+    portalUrl: 'https://admin.powerplatform.microsoft.com/licensing/billingplans'
+  },
+
+  'pp-dataverse': {
+    title: 'Provision a Dataverse Environment',
+    desc: `A Power Platform environment with Dataverse is required for Copilot Studio to create and manage agents. If the Dataverse service principal is missing, you may need to create a new environment.`,
+    instructions: `<ol>
+      <li>Go to <a href="https://admin.powerplatform.microsoft.com/environments" target="_blank">Power Platform admin center → Environments</a></li>
+      <li>Click <strong>+ New</strong> to create a new environment</li>
+      <li>Give it a name, select the region, and set the type (e.g., <strong>Developer</strong> or <strong>Production</strong>)</li>
+      <li>Toggle <strong>Add a Dataverse data store</strong> to <strong>Yes</strong></li>
+      <li>Configure the currency and language, then click <strong>Save</strong></li>
+      <li>Wait for provisioning to complete (may take several minutes)</li>
+    </ol>`,
+    commands: [],
+    docUrl: 'https://learn.microsoft.com/en-us/power-platform/admin/create-environment',
+    portalUrl: 'https://admin.powerplatform.microsoft.com/environments'
+  }
+};
+
+/* ─────────────────────────────────────────────
+   RENDER STEPS
+───────────────────────────────────────────── */
+function renderSteps() {
+  const container = document.getElementById('steps-container');
+  const noIssues = document.getElementById('no-issues');
+
+  // Read results from localStorage
+  let results = {};
+  let messages = {};
+  try {
+    results = JSON.parse(localStorage.getItem('cua_check_results') || '{}');
+    messages = JSON.parse(localStorage.getItem('cua_check_messages') || '{}');
+  } catch (e) {
+    console.error('Could not parse saved results:', e);
+  }
+
+  // Filter to only failed/warning items
+  const issues = Object.entries(results).filter(([id, status]) => status === 'fail' || status === 'warn');
+
+  if (issues.length === 0) {
+    container.style.display = 'none';
+    noIssues.style.display = 'block';
+    return;
+  }
+
+  let stepNum = 0;
+  issues.forEach(([id, status]) => {
+    const step = STEPS[id];
+    if (!step) return; // no remediation guide for this check
+    stepNum++;
+
+    const section = document.createElement('div');
+    section.className = 'step-section';
+
+    const statusLabel = status === 'fail' ? 'FAILED' : 'WARNING';
+    const statusClass = status === 'fail' ? 'fail' : 'warn';
+    const msg = messages[id] || '';
+
+    let commandsHtml = '';
+    if (step.commands && step.commands.length > 0) {
+      commandsHtml = step.commands.map((cmd, i) => `
+        <div class="cmd-block">
+          <div class="cmd-label">
+            <span>PowerShell — ${cmd.label}</span>
+            <button class="copy-btn" onclick="copyCmd(this, ${stepNum}_${i})">📋 Copy</button>
+          </div>
+          <div class="cmd-code" id="cmd-${stepNum}-${i}">${escapeHtml(cmd.code)}</div>
+        </div>
+      `).join('');
+    }
+
+    let linksHtml = '';
+    if (step.docUrl || step.portalUrl) {
+      linksHtml = '<div class="step-links">';
+      if (step.docUrl) linksHtml += `<a class="step-link" href="${step.docUrl}" target="_blank">📖 Documentation</a>`;
+      if (step.portalUrl) linksHtml += `<a class="step-link" href="${step.portalUrl}" target="_blank">🔗 Open Portal</a>`;
+      linksHtml += '</div>';
+    }
+
+    section.innerHTML = `
+      <div class="step-header">
+        <div class="step-number">${stepNum}</div>
+        <div class="step-title">${step.title}</div>
+        <span class="step-status ${statusClass}">${statusLabel}</span>
+      </div>
+      <div class="step-body">
+        ${msg ? `<div class="result-msg ${statusClass}-msg">Check result: ${escapeHtml(msg)}</div>` : ''}
+        <div class="step-desc">${step.desc}</div>
+        <div class="step-desc">${step.instructions}</div>
+        ${commandsHtml}
+        ${linksHtml}
+      </div>
+    `;
+    container.appendChild(section);
+  });
+
+  if (stepNum === 0) {
+    container.style.display = 'none';
+    noIssues.style.display = 'block';
+  }
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function copyCmd(btn, cmdId) {
+  // Find the code element within the same cmd-block
+  const block = btn.closest('.cmd-block');
+  const code = block.querySelector('.cmd-code');
+  if (code) {
+    navigator.clipboard.writeText(code.textContent).then(() => {
+      btn.textContent = '✅ Copied!';
+      setTimeout(() => { btn.textContent = '📋 Copy'; }, 2000);
+    }).catch(() => {
+      // Fallback
+      const range = document.createRange();
+      range.selectNodeContents(code);
+      window.getSelection().removeAllRanges();
+      window.getSelection().addRange(range);
+      document.execCommand('copy');
+      btn.textContent = '✅ Copied!';
+      setTimeout(() => { btn.textContent = '📋 Copy'; }, 2000);
+    });
+  }
+}
+
+// Render on page load
+renderSteps();
+</script>
+</body>
+</html>
