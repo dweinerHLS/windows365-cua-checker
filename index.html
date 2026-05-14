@@ -1080,41 +1080,32 @@ const INTUNE_CHECKS = [
   {
     id: 'entra-p1',
     name: 'Microsoft Entra ID P1 License Present',
-    scope: 'organization/subscribedSKUs',
+    scope: 'organization/subscribedSKUs (service plans)',
     docUrl: 'https://learn.microsoft.com/en-us/windows-365/enterprise/requirements#licensing-requirements',
     run: async () => {
       try {
-        const resp = await graphGet('/subscribedSkus?$select=skuPartNumber,skuId,capabilityStatus,consumedUnits,prepaidUnits');
+        // Fetch SKUs WITH servicePlans to check for AAD_PREMIUM service plan
+        const resp = await graphGet('/subscribedSkus?$select=skuPartNumber,skuId,capabilityStatus,servicePlans');
         const skus = resp.value || [];
-        const p1Patterns = [
-          'AAD_PREMIUM',       // Entra ID P1 standalone
-          'AAD_PREMIUM_P2',    // Entra ID P2 standalone
-          'EMSPREMIUM',        // EMS E3/E5
-          'EMS_E3',
-          'EMS_E5',
-          'M365_E3',           // Microsoft 365 E3
-          'M365_E5',           // Microsoft 365 E5
-          'SPE_E3',            // Microsoft 365 E3 (alt SKU name)
-          'SPE_E5',            // Microsoft 365 E5 (alt SKU name)
-          'SPE_F1',            // Microsoft 365 F1/F3
-          'SPE_F3',
-          'M365_F1',
-          'M365_F3',
-          'ENTERPRISEPREMIUM',  // Office 365 E5
-          'ENTERPRISEPACK',     // Office 365 E3 (includes AAD P1 via M365)
-          'M365EDU_A3',        // Education
-          'M365EDU_A5',
-          'M365_BUSINESS_PREMIUM', // M365 Business Premium (includes AAD P1)
-          'M365_G3',           // GCC
-          'M365_G5',
-          'IDENTITY_THREAT_PROTECTION', // Entra ID P2 via Identity Protection
-          'MICROSOFT_365_E3',
-          'MICROSOFT_365_E5'
-        ];
-        const found = skus.filter(s => p1Patterns.some(p => s.skuPartNumber?.includes(p)) && s.capabilityStatus === 'Enabled');
-        if (found.length) return { status: 'pass', msg: `Found compatible SKU(s): ${found.map(s=>s.skuPartNumber).join(', ')}` };
-        const allSkus = skus.filter(s => s.capabilityStatus === 'Enabled').map(s => s.skuPartNumber).join(', ');
-        return { status: 'warn', msg: `No Entra ID P1 SKU matched. Tenant SKUs: ${allSkus || 'none'}. Verify in M365 admin center.` };
+        const enabled = skus.filter(s => s.capabilityStatus === 'Enabled');
+
+        // Check if any enabled SKU contains the AAD_PREMIUM or AAD_PREMIUM_P2 service plan
+        const p1ServicePlans = ['AAD_PREMIUM', 'AAD_PREMIUM_P2'];
+        const withP1 = enabled.filter(s =>
+          (s.servicePlans || []).some(sp =>
+            p1ServicePlans.some(p => sp.servicePlanName === p) && sp.provisioningStatus === 'Success'
+          )
+        );
+        if (withP1.length) return { status: 'pass', msg: `Entra ID P1 included in: ${withP1.map(s => s.skuPartNumber).join(', ')}` };
+
+        // Fallback: check if any enabled SKU has AAD_PREMIUM in any status
+        const withP1Any = enabled.filter(s =>
+          (s.servicePlans || []).some(sp => p1ServicePlans.some(p => sp.servicePlanName === p))
+        );
+        if (withP1Any.length) return { status: 'pass', msg: `Entra ID P1 found in: ${withP1Any.map(s => s.skuPartNumber).join(', ')} (provisioning may be pending)` };
+
+        const allSkus = enabled.map(s => s.skuPartNumber).join(', ');
+        return { status: 'warn', msg: `No SKU with Entra ID P1 service plan found. Tenant SKUs: ${allSkus || 'none'}. Verify in M365 admin center.` };
       } catch (e) {
         return { status: 'warn', msg: `Could not read SKUs: ${e.message}` };
       }
