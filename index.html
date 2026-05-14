@@ -330,6 +330,8 @@
       flex-direction: column;
       gap: 8px;
       transition: border-color 0.2s, box-shadow 0.2s;
+      overflow: hidden;
+      min-width: 0;
     }
 
     .check-card:hover {
@@ -350,13 +352,15 @@
       gap: 8px;
     }
 
-    .card-left { flex: 1; }
+    .card-left { flex: 1; min-width: 0; }
 
     .card-name {
       font-size: 0.88rem;
       font-weight: 600;
       color: #fff;
       line-height: 1.3;
+      overflow-wrap: break-word;
+      word-break: break-word;
     }
 
     .card-scope {
@@ -364,6 +368,8 @@
       color: var(--muted);
       margin-top: 3px;
       font-family: 'Cascadia Code', 'Consolas', monospace;
+      overflow-wrap: break-word;
+      word-break: break-all;
     }
 
     .status-pill {
@@ -385,6 +391,8 @@
       font-size: 0.8rem;
       color: var(--muted);
       line-height: 1.5;
+      overflow-wrap: break-word;
+      word-break: break-word;
     }
 
     .card-message.msg-pass { color: var(--pass); }
