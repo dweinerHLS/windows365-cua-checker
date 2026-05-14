@@ -1167,7 +1167,7 @@ const PP_CHECKS = [
         const m365Patterns = ['SPE_E3','SPE_E5','M365_E3','M365_E5','ENTERPRISEPREMIUM','DEVELOPERPACK'];
         const m365 = skus.filter(s => m365Patterns.some(p => s.skuPartNumber?.toUpperCase().includes(p)) && s.capabilityStatus === 'Enabled');
         if (m365.length > 0)
-          return { status: 'pass', msg: `M365 license detected (${m365.map(s => s.skuPartNumber).join(', ')}). If using pay-as-you-go for CUA, verify in PPAC → Billing → Billing policies.` };
+          return { status: 'warn', msg: `M365 license detected (${m365.map(s => s.skuPartNumber).join(', ')}), but no dedicated Copilot Studio license or pay-as-you-go billing plan found. Verify in PPAC → Billing → Billing policies that pay-as-you-go is set up.` };
         return { status: 'warn', msg: 'Could not retrieve billing plan details from API. If using pay-as-you-go, this is expected from a browser. Verify in PPAC → Billing → Billing policies that a plan is active and linked to an Azure subscription.' };
       } catch (e) {
         return { status: 'warn', msg: `Could not check billing: ${e.message}. Verify in PPAC → Billing → Billing policies.` };
